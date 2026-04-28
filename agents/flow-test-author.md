@@ -1,6 +1,6 @@
 ---
 name: flow-test-author
-description: Phase 3 of /flow pipeline. Writes failing tests for one batch of the plan, self-runs them, and proves they fail for the right reason (missing behavior, not setup errors). Called by the /flow orchestrator per batch.
+description: Phase 4 of /flow pipeline. Writes failing tests for one batch of the plan, self-runs them, and proves they fail for the right reason (missing behavior, not setup errors). Called by the /flow orchestrator per batch.
 model: claude-sonnet-4-6
 tools: Read, Write, Edit, Grep, Glob, Bash
 ---

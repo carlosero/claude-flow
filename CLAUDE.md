@@ -18,7 +18,7 @@ There is no automated test suite. Validation is end-to-end: run `/flow` on a rea
 
 ## Architecture in one paragraph
 
-`/flow` is a state machine implemented as an orchestrator skill that dispatches to bounded subagents and never writes code itself. Each phase routes work to the cheapest subagent that can do it: Haiku for classification/command-execution/templating (triager, test-runner, reporter), Sonnet for moderate judgment (small-task clarifier, test-author, failure-triager), Opus for the load-bearing reasoning calls (medium/large clarifier, planner, implementer). Subagents run in fresh contexts, see only what the orchestrator hands them, and die after returning. The orchestrator holds all cross-phase state — cycle counters, modified-test log, batch progress.
+`/flow` is a state machine implemented as an orchestrator skill that dispatches to bounded subagents and never writes code itself. Each phase routes work to the cheapest subagent that can do it: Haiku for classification/command-execution/templating (triager, test-runner, reporter), Sonnet for moderate judgment (PM, test-author, failure-triager), Opus for the load-bearing reasoning calls (architect [L only], planner, implementer). Subagents run in fresh contexts, see only what the orchestrator hands them, and die after returning. The orchestrator holds all cross-phase state — cycle counters, modified-test log, batch progress.
 
 Read `skills/flow/SKILL.md` for the full state machine. Read `docs/architecture.md` for the rationale behind each split. Read `docs/workflow.md` for the user-facing phase walkthrough. The three documents intentionally cover different audiences (orchestrator implementation / design rationale / user guide); keep that separation when editing.
 

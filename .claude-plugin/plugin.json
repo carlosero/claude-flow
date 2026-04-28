@@ -1,6 +1,6 @@
 {
   "name": "flow",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Token-conscious TDD orchestration for Claude Code. Multi-agent pipeline with model-tiered subagents and strict anti-loop guards.",
   "author": {
     "name": "TODO: your name",

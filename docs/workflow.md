@@ -33,9 +33,38 @@ Examples:
 /flow add real-time chat with message history and typing indicators
 ```
 
-## Phase 0 — Triage
+## Phase 0 — PM (feature definition)
 
-The triager (Haiku) reads your task and the project root. It produces:
+The PM (Sonnet) is the first responder. It reads your task and turns it into a tight feature definition with explicit, testable acceptance criteria. If the task has gaps or contradictions, it asks up to 15 multi-choice questions before drafting the spec.
+
+The artifact looks like:
+
+```
+feature: <one short paragraph>
+acceptance_criteria:
+  - <observable, testable criterion>
+  - <observable, testable criterion>
+out_of_scope:
+  - <thing the user might assume is included but isn't>
+open_assumptions:
+  - <residual assumption made because the question budget was capped>
+```
+
+The acceptance criteria become the test targets — every criterion should be reachable by at least one batch's tests.
+
+```
+Phase 0 — 2 questions
+```
+
+You answer; PM returns the spec:
+
+```
+Phase 0 — spec ready
+```
+
+## Phase 1 — Triage
+
+The triager (Haiku) reads your task and the PM spec, then inspects the project root. It produces:
 
 - **Size tier** — `S`, `M`, or `L`
 - **Stack** — detected framework, test runner, typecheck command
@@ -44,30 +73,28 @@ The triager (Haiku) reads your task and the project root. It produces:
 You see one short status line. No interaction required.
 
 ```
-Phase 0 — triaged: M / Next.js + TypeScript + Vitest
+Phase 1 — triaged: M / Next.js + TypeScript + Vitest
 ```
 
-## Phase 1 — Clarify
+## Phase 2 — Architect (L only)
 
-The clarifier (Sonnet for `S`, Opus for `M`/`L`) reads the task in context, identifies genuine ambiguities, and asks questions if needed.
+For S and M tasks, this phase is **skipped silently**. Flow goes straight from triage to plan.
 
-**Cap: 15 questions per batch.** Most well-specified tasks get 0 questions. Most large open-ended tasks get 2–4. Questions tend to be multi-choice for fast answering.
+For L tasks, the architect (Opus) reviews the PM spec, the triage output, and relevant integration points in the codebase, then produces a high-level overview: subsystems and boundaries, data flow, integration points, key trade-offs, open assumptions. No code, no batches, no test strategy — that's the planner's job.
 
-If you have remaining ambiguity after answering the 15 questions, the planner states assumptions explicitly in Phase 2 instead of asking more.
-
-```
-Phase 1 — 3 questions
-```
-
-You answer; the orchestrator continues.
-
-If 0 questions:
+The architect can ask up to 15 high-level questions before producing the overview (subsystem placement, sync vs async, transactional boundaries, etc.).
 
 ```
-Phase 1 — no questions, proceeding
+Phase 2 — 4 high-level questions
 ```
 
-## Phase 2 — Plan
+You answer; architect returns the overview:
+
+```
+Phase 2 — architect overview ready
+```
+
+## Phase 3 — Plan
 
 The planner (Opus, ultrathink) produces a structured plan:
 
@@ -105,23 +132,23 @@ Three response paths:
 
 | You say | Flow does |
 |---|---|
-| "approve" / "go" / "proceed" / "lgtm" / "ship it" | Continues to Phase 3 |
+| "approve" / "go" / "proceed" / "lgtm" / "ship it" | Continues to Phase 4 |
 | "change X" / "what about Y?" / "I don't like Z" | Re-dispatches planner with feedback, re-presents |
 | "change X and proceed" | Re-dispatches planner silently, continues |
 
 When in doubt, Flow re-presents. You can always say "proceed" on the next turn.
 
-## Phase 3 — Write failing tests
+## Phase 4 — Write failing tests
 
 For each batch, the test-author (Sonnet) writes tests, runs them, and confirms they fail **for the right reason** — meaning the behavior doesn't exist yet, not because of syntax errors or missing imports.
 
 If a test fails for a setup reason (typo, missing module), the test-author fixes and re-runs until all failures are right-reason failures. If it can't get there in 2 attempts, it escalates.
 
 ```
-Phase 3 — batch 1/3 — tests failing for right reason
+Phase 4 — batch 1/3 — tests failing for right reason
 ```
 
-## Phase 4 — Implement
+## Phase 5 — Implement
 
 For each batch, in order:
 
@@ -132,12 +159,12 @@ For each batch, in order:
 5. If tests fail, failure-triager classifies; orchestrator routes by classification
 
 ```
-Phase 4 — batch 1/3 — green
-Phase 4 — batch 2/3 — green
-Phase 4 — batch 3/3 — green
+Phase 5 — batch 1/3 — green
+Phase 5 — batch 2/3 — green
+Phase 5 — batch 3/3 — green
 ```
 
-## Phase 5 — Full suite
+## Phase 6 — Full suite
 
 After all batches implemented:
 
@@ -145,7 +172,7 @@ After all batches implemented:
 2. Test-runner runs full test suite
 3. Test-runner reports coverage on touched files
 
-If all green and coverage ≥ 90% on touched files, → Phase 6.
+If all green and coverage ≥ 90% on touched files, → Phase 7.
 
 If coverage below 90% on touched files, test-author writes the missing tests, test-runner re-runs.
 
@@ -158,10 +185,10 @@ If failures, failure-triager (Sonnet) classifies each:
 Cascades (3+ failures with shared root) are fixed at the root, not per-failure.
 
 ```
-Phase 5 — full suite: 47/47, coverage 94%
+Phase 6 — full suite: 47/47, coverage 94%
 ```
 
-## Phase 6 — Handoff
+## Phase 7 — Handoff
 
 The reporter (Haiku) formats a summary:
 
@@ -211,7 +238,7 @@ Failure-triager flags it. Orchestrator fixes the root only — does not iterate 
 ## Customization
 
 ### Per-project conventions
-Your project's `CLAUDE.md` is read at Phase 0 and respected throughout. Conventions, test rules, and no-gos override Flow defaults — but anti-loop guards and hard guards stay enforced.
+Your project's `CLAUDE.md` is read at Phase 1 (triage) and respected throughout. Conventions, test rules, and no-gos override Flow defaults — but anti-loop guards and hard guards stay enforced.
 
 ### Changing model assignments
 Edit the `model` field in the relevant `agents/flow-*.md` file. Aliases (`opus`, `sonnet`, `haiku`) auto-track latest releases; full IDs pin to specific versions.

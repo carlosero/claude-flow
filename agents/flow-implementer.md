@@ -1,6 +1,6 @@
 ---
 name: flow-implementer
-description: Phase 4 of /flow pipeline. Writes the minimum production code to make one batch's failing tests pass. Called by the /flow orchestrator per batch. Does not run tests — that's the test-runner's job.
+description: Phase 5 of /flow pipeline. Writes the minimum production code to make one batch's failing tests pass. Called by the /flow orchestrator per batch. Does not run tests — that's the test-runner's job.
 model: claude-opus-4-7
 tools: Read, Write, Edit, Grep, Glob
 ---

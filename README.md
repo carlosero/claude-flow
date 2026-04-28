@@ -13,7 +13,7 @@ The result: Opus only fires when judgment matters (planning, implementing). Sonn
 ## What you get
 
 - **`/flow {task}`** — single entrypoint that runs the full pipeline
-- **Phased workflow** — triage → clarify → plan → write failing tests → implement → run suite → report
+- **Phased workflow** — PM → triage → architect (L only) → plan → write failing tests → implement → run suite → report
 - **Plan approval gate** — workflow stops for your review; three response paths handle proceed / revise / revise-and-proceed
 - **Anti-loop guards** — per-test attempt caps, implementer re-dispatch caps, total cycle circuit breaker, cascade detection
 - **Hard guards** — no destructive operations, no auto-commits, no secrets ever leaked
@@ -25,23 +25,25 @@ The result: Opus only fires when judgment matters (planning, implementing). Sonn
 ```
 /flow {task}
   ↓
-[Phase 0] Triager (Haiku)            classify size, detect stack, extract CLAUDE.md slices
+[Phase 0] PM (Sonnet)                feature definition + acceptance criteria; 0–15 questions if needed
   ↓
-[Phase 1] Clarifier (Sonnet or Opus) 0–15 questions if genuine ambiguity exists
+[Phase 1] Triager (Haiku)            classify size, detect stack, extract CLAUDE.md slices
   ↓
-[Phase 2] Planner (Opus, ultrathink) structured plan
+[Phase 2] Architect (Opus, L only)   high-level architectural overview; 0–15 questions if needed
+  ↓
+[Phase 3] Planner (Opus, ultrathink) structured plan
   ↓
 [USER GATE]                          you review and approve the plan
   ↓
-[Phase 3] Test Author (Sonnet)       writes failing tests, proves they fail for right reason
+[Phase 4] Test Author (Sonnet)       writes failing tests, proves they fail for right reason
   ↓
-[Phase 4] Implementer (Opus)         writes minimum code to pass tests
+[Phase 5] Implementer (Opus)         writes minimum code to pass tests
           Test Runner (Haiku)        per-batch typecheck + tests
   ↓
-[Phase 5] Test Runner (Haiku)        full suite + typecheck + coverage
+[Phase 6] Test Runner (Haiku)        full suite + typecheck + coverage
           Failure Triager (Sonnet)   classifies failures: test-wrong / plan-wrong / code-wrong
   ↓
-[Phase 6] Reporter (Haiku)           formatted handoff
+[Phase 7] Reporter (Haiku)           formatted handoff
 ```
 
 For phase-by-phase detail, see [docs/workflow.md](docs/workflow.md).
@@ -75,7 +77,7 @@ Then start a fresh Claude Code session and run `/flow <task>`.
 /flow add a /api/health endpoint that returns 200 with uptime in seconds
 ```
 
-Phase 0 will classify this as `S` (small). Clarifier likely has 0 questions. Planner produces a plan. You approve. Tests get written and proven failing. Implementation. Full suite. Handoff.
+PM tightens the spec (likely 0 questions for something this clear). Phase 1 will classify this as `S` (small), so the architect is skipped. Planner produces a plan. You approve. Tests get written and proven failing. Implementation. Full suite. Handoff.
 
 For a meatier example:
 
@@ -83,7 +85,7 @@ For a meatier example:
 /flow add real-time chat to the dashboard with message persistence and typing indicators
 ```
 
-This will likely classify as `L` (large). Expect clarifying questions from the Opus clarifier about scope (DMs vs group chat, persistence backend, message ordering guarantees). The plan will be batched. Implementation runs through batches in order.
+This will likely classify as `L` (large). The PM will probably ask scope questions (DMs vs group chat, retention, ordering guarantees) and pin down acceptance criteria. The architect will then frame the high-level shape (subsystems, persistence, transport) before the planner produces batches. Implementation runs through batches in order.
 
 ## Anti-loop guards
 
@@ -93,7 +95,7 @@ The biggest token-waste risk in AI-assisted TDD is unconscious test/fix looping.
 |---|---|---|
 | Per-test fix attempts | 3 | Stop, escalate |
 | Implementer re-dispatches per batch | 3 | Stop, escalate |
-| Full-suite runs in Phase 5 | 3 | Stop, report state |
+| Full-suite runs in Phase 6 | 3 | Stop, report state |
 | Total test/fix cycles across workflow | 5 | Stop, check in |
 
 A "diagnose before retry" rule requires the orchestrator to articulate a one-sentence root cause before any retry dispatch. If it can't articulate, it asks you instead.
@@ -121,9 +123,9 @@ Flow respects your project's `CLAUDE.md`. Conventions, test rules, and no-gos de
 
 Subagent model assignments are set in each agent's frontmatter. To change them, edit the agent files directly:
 
-- `agents/flow-triager.md` — currently Haiku
-- `agents/flow-clarifier-sonnet.md` — Sonnet (small tasks)
-- `agents/flow-clarifier-opus.md` — Opus (medium/large tasks)
+- `agents/flow-pm.md` — Sonnet
+- `agents/flow-triager.md` — Haiku
+- `agents/flow-architect.md` — Opus (L tasks only)
 - `agents/flow-planner.md` — Opus
 - `agents/flow-test-author.md` — Sonnet
 - `agents/flow-implementer.md` — Opus

@@ -36,9 +36,9 @@ Skills "chaining" was considered and rejected. Skills are contextual instruction
 | Subagent | Model | Reason |
 |---|---|---|
 | Orchestrator (the skill) | inherits session model | Lightweight state machine, no heavy lifting |
+| `flow-pm` | Sonnet | First responder. Defining a feature + acceptance criteria is judgment work but bounded — Sonnet is sufficient and the architect handles the heavy reasoning for L. |
 | `flow-triager` | Haiku | Pattern-match against rubric, classify, parse files. Cheap. |
-| `flow-clarifier-sonnet` | Sonnet | Small-task ambiguity detection. Sufficient. |
-| `flow-clarifier-opus` | Opus | Medium/large task clarification needs deep judgment about scope, architecture, integration |
+| `flow-architect` | Opus | L-only. Architectural shape decisions are load-bearing for the planner; deep judgment about subsystems and integration warrants Opus. Skipped entirely for S/M. |
 | `flow-planner` | Opus + ultrathink keyword | Highest-leverage call in the pipeline. A bad plan poisons every later phase. |
 | `flow-test-author` | Sonnet | Competent test writing. Doesn't need Opus. Self-runs to prove failure. |
 | `flow-implementer` | Opus | Hardest reasoning task. Worth the cost. |
@@ -46,13 +46,13 @@ Skills "chaining" was considered and rejected. Skills are contextual instruction
 | `flow-failure-triager` | Sonnet | Classifying a failure into one of three buckets is judgment work, but bounded. |
 | `flow-reporter` | Haiku | Templating from structured state. |
 
-The clarifier-by-size-tier pattern is unusual but intentional. Small tasks rarely have ambiguities worth Opus reasoning. Large tasks routinely do. Routing the call by triage classification gets the right model for each case.
+The PM-then-architect split is intentional. The PM grounds the work in user-facing terms (what's being built, when it's done) regardless of size — the cheapest tier that can do that job well. The architect runs only when size is L, where architectural shape decisions warrant Opus and would otherwise dominate the planner's already-Opus call. For S/M tasks, the architect would be overkill and is skipped.
 
 ## Why merge test-author and test-runner for the cold path, but split for the hot path
 
-**Cold path (Phase 3 — initial test writing):** the test-author writes tests AND runs them itself, proves they fail for the right reason, then returns. One subagent, Sonnet.
+**Cold path (Phase 4 — initial test writing):** the test-author writes tests AND runs them itself, proves they fail for the right reason, then returns. One subagent, Sonnet.
 
-**Hot path (Phase 4/5 — implementation):** test-runner is its own dedicated Haiku subagent that the orchestrator dispatches separately from the implementer.
+**Hot path (Phase 5/6 — implementation):** test-runner is its own dedicated Haiku subagent that the orchestrator dispatches separately from the implementer.
 
 Why the asymmetry?
 
@@ -70,7 +70,7 @@ The guards layer multiple brakes:
 |---|---|---|
 | Per-test fix attempts | 3 | Hard stop on individual flailing |
 | Implementer re-dispatches per batch | 3 | Hard stop on whole-batch flailing |
-| Full-suite runs in Phase 5 | 3 | Hard stop on suite-level flailing |
+| Full-suite runs in Phase 6 | 3 | Hard stop on suite-level flailing |
 | Total test/fix cycles | 5 | Catch slow-burn waste |
 | Cascade detection | 3+ failures with same root | Fix root only, not each downstream symptom |
 | Diagnose-before-retry | always | Force articulation of root cause before any retry |
@@ -82,7 +82,7 @@ If guards trigger too aggressively for your workflow, raise them in the orchestr
 
 ## The plan-approval gate
 
-Phase 2 is the only mid-pipeline gate where flow stops and waits for the user. The three response paths exist because real plan reviews aren't binary:
+Phase 3 is the only mid-pipeline gate where flow stops and waits for the user explicitly to approve a structured artifact. (Phases 0 and 2 also stop for user input, but only when the PM or architect surfaces questions — and only to gather answers, not to approve an artifact.) The three response paths at the plan gate exist because real plan reviews aren't binary:
 
 1. **Explicit proceed** ("approve", "go", "lgtm", etc.) — continue
 2. **Question or change request** — revise, re-present, back to gate
@@ -101,7 +101,7 @@ Plans are produced as structured markdown so downstream subagents can extract sl
 5. **Risks & assumptions**
 6. **Rollback** (only when destructive ops are involved)
 
-**Code is not in the plan by default.** Plans describe architecture, not implementations. Carlos's design preference, but it also serves token discipline — Phase 2 review is faster when the plan is high-level.
+**Code is not in the plan by default.** Plans describe architecture, not implementations. Carlos's design preference, but it also serves token discipline — Phase 3 review is faster when the plan is high-level.
 
 The exception: if the planner identifies a piece of *load-bearing core logic* (subtle state machine, complex contract), it includes a brief sketch tagged `[core logic preview]` so the user can sanity-check the shape before implementation. Use sparingly.
 
@@ -109,7 +109,7 @@ The exception: if the planner identifies a piece of *load-bearing core logic* (s
 
 `CLAUDE.md` files are project memory in Claude Code. They auto-load into the orchestrator's session at startup. Flow uses them in two ways:
 
-- **Triager extracts slices** — at Phase 0, the triager pulls relevant pieces (conventions, test rules, no-gos) from `CLAUDE.md` files
+- **Triager extracts slices** — at Phase 1, the triager pulls relevant pieces (conventions, test rules, no-gos) from `CLAUDE.md` files
 - **Orchestrator passes slices to subagents** — only the relevant slice ships with each dispatch, not the whole file
 
 `CLAUDE.md` *can* override:

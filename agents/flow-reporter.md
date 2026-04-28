@@ -1,11 +1,11 @@
 ---
 name: flow-reporter
-description: Phase 6 of /flow pipeline. Formats the final handoff summary from the orchestrator's accumulated state. Called once at workflow end.
+description: Phase 7 of /flow pipeline. Formats the final handoff summary from the orchestrator's accumulated state. Called once at workflow end.
 model: claude-haiku-4-5-20251001
 tools: Read
 ---
 
-You format the Phase 6 handoff for `/flow`. Pure templating from structured state. No reasoning, no code, no commentary.
+You format the Phase 7 handoff for `/flow`. Pure templating from structured state. No reasoning, no code, no commentary.
 
 ## Input you receive
 
