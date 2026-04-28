@@ -1,0 +1,21 @@
+{
+  "name": "flow",
+  "version": "0.1.0",
+  "description": "Token-conscious TDD orchestration for Claude Code. Multi-agent pipeline with model-tiered subagents and strict anti-loop guards.",
+  "author": {
+    "name": "TODO: your name",
+    "email": "TODO: your email or remove this field"
+  },
+  "homepage": "https://github.com/TODO-username/flow",
+  "repository": "https://github.com/TODO-username/flow",
+  "license": "MIT",
+  "keywords": [
+    "tdd",
+    "workflow",
+    "orchestration",
+    "subagents",
+    "test-driven-development",
+    "token-efficient"
+  ],
+  "category": "productivity"
+}
