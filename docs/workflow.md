@@ -188,7 +188,33 @@ Cascades (3+ failures with shared root) are fixed at the root, not per-failure.
 Phase 6 — full suite: 47/47, coverage 94%
 ```
 
-## Phase 7 — Handoff
+## Phase 7 — Security review
+
+Once Phase 6 is green, the security reviewer (Sonnet) runs `git diff` and `git status` to inspect every uncommitted change, then checks the diff against a category list (injection, XSS, auth/authz gaps including IDOR, secrets, frontend env leakage, CSRF, SSRF, path traversal, open redirect, insecure deserialization, mass assignment, weak crypto, CORS, sensitive logging).
+
+Scope: only issues *introduced or worsened by this diff*. Pre-existing problems outside the change are out of scope by design.
+
+If clean:
+
+```
+Phase 7 — security: clean
+```
+
+If findings:
+
+```
+Phase 7 — security: 2 findings (1 high, 1 medium), routing to implementer (cycle 1/3)
+```
+
+The orchestrator then:
+
+1. Hands the findings to the implementer (Opus) to fix
+2. Runs the full test suite (failures route through the failure-triager exactly like Phase 6)
+3. Re-runs the security reviewer to confirm each prior finding is resolved and no new issue was introduced
+
+This loops until the review comes back clean or the security-cycle cap (3) trips. On trip, the orchestrator surfaces remaining findings to you with the cycles already spent and waits for direction.
+
+## Phase 8 — Handoff
 
 The reporter (Haiku) formats a summary:
 
@@ -210,6 +236,10 @@ The reporter (Haiku) formats a summary:
 - Typecheck: clean
 - Coverage on touched files: 94%
 
+## Security findings resolved
+- `app/api/users/route.ts` — high — auth (added session check on PATCH handler)
+- ...
+
 ## Deferred
 - <refactor opportunity noted but not done>
 ```
@@ -228,6 +258,9 @@ Same pattern — stop, show what was tried, you direct.
 
 ### Hit total cycle cap (5 cycles)
 Orchestrator pauses: "5 cycles done. State: X pass, Y fail. Continue or pause?" You decide.
+
+### Hit security review cap (3 cycles)
+Orchestrator stops in Phase 7, lists the open findings and the fix attempts so far, and waits for direction. You may direct the implementer with extra context, accept lower-severity findings as deferred, or abandon.
 
 ### Plan invalidation mid-flow (Case 2)
 A test reveals the plan's approach can't work. Orchestrator stops, surfaces the conflict, waits for direction. You may re-plan, redirect, or abandon.

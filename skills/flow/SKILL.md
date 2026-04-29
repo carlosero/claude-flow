@@ -1,6 +1,6 @@
 ---
 name: flow
-description: Carlos's structured development workflow for non-trivial features, invoked explicitly with /flow {task description}. Orchestrates a multi-agent pipeline — PM → triage → architect (L only) → plan → write failing tests → implement → run suite → report — with strict anti-loop guards and model-tiered subagents. Use this skill ONLY when the user types /flow; do not auto-trigger on other coding questions.
+description: Carlos's structured development workflow for non-trivial features, invoked explicitly with /flow {task description}. Orchestrates a multi-agent pipeline — PM → triage → architect (L only) → plan → write failing tests → implement → run suite → security review → report — with strict anti-loop guards and model-tiered subagents. Use this skill ONLY when the user types /flow; do not auto-trigger on other coding questions.
 ---
 
 # /flow — Orchestrated Development Workflow
@@ -27,9 +27,10 @@ Output style: **dense, skimmable, terse.** Carlos moves fast. Announce each phas
 | `flow-planner` | Phase 3 (initial plan + any revision) |
 | `flow-test-author` | Phase 4 (per batch; writes tests, self-runs, proves failure) |
 | `flow-implementer` | Phase 5 (per batch; writes production code) |
-| `flow-test-runner` | Phase 5 post-batch typecheck+tests, Phase 6 full typecheck+suite |
+| `flow-test-runner` | Phase 5 post-batch typecheck+tests, Phase 6 full typecheck+suite, Phase 7 re-run after security fixes |
 | `flow-failure-triager` | Phase 6 when failures occur |
-| `flow-reporter` | Phase 7 handoff |
+| `flow-security-reviewer` | Phase 7: review uncommitted diff for security issues (re-runs after each fix cycle) |
+| `flow-reporter` | Phase 8 handoff |
 
 ---
 
@@ -161,7 +162,7 @@ Receive: per-failure classification + fix suggestion, cascade flag if detected.
 
 Classifications:
 
-- **Case 1 — test was wrong** (asserted incorrect behavior; correct behavior is X). Apply the suggested test fix automatically. Log in state as "modified test: `<path>` — reason: `<reason>`" for Phase 7 reporting. Continue.
+- **Case 1 — test was wrong** (asserted incorrect behavior; correct behavior is X). Apply the suggested test fix automatically. Log in state as "modified test: `<path>` — reason: `<reason>`" for Phase 8 reporting. Continue.
 
 - **Case 2 — plan invalidation** (test correctly asserts what was planned, but approach doesn't work). **Stop. Surface to Carlos. Wait for direction.** Carlos may instruct to re-plan (re-dispatch `flow-planner`), abandon, or redirect.
 
@@ -170,6 +171,33 @@ Classifications:
 - **Cascade detected** (triager flagged >3 failures with shared root). Fix the root per the triager's suggestion (Case 3 path), not each downstream failure.
 
 Announce escalations and retries briefly: `Phase 6 — 3 failures (1 test-wrong auto-fixed, 2 regressions, retrying implementer)`
+
+---
+
+## Phase 7 — Security review
+
+After Phase 6 is green, dispatch `flow-security-reviewer` with: project root, PM spec, plan, CLAUDE.md security slice (if any), list of files changed across all batches.
+
+Receive: either `status: clean` or `status: findings` with a structured findings list (severity, category, file/line, issue, evidence, fix_approach).
+
+### Decision tree
+
+- `status: clean` → Phase 8.
+- `status: findings` →
+  1. Dispatch `flow-implementer` with the full findings list, the relevant file contents, and the test files (read-only, as the contract — fixes must not break tests). Implementer addresses every finding. Count as 1 implementer re-dispatch (per-batch cap does not apply here; security cycles cap does — see below).
+  2. Dispatch `flow-test-runner` for the full typecheck + full test suite. If tests fail → route through `flow-failure-triager` exactly as in Phase 6 (Case 1/2/3). Cycle counters keep accumulating.
+  3. Once tests are green again, re-dispatch `flow-security-reviewer` with the same inputs. The reviewer must explicitly resolve each prior finding (resolved or still-open) and may surface new findings introduced by the fix.
+  4. Loop until `status: clean` or the security-cycle cap trips.
+
+### Diff scope
+
+The reviewer reads `git diff HEAD --` and `git status --porcelain` itself. Pass it the file list as a hint, not a replacement — new files added by the implementer's fix should still surface.
+
+### Severity gating
+
+Critical and high findings always loop. Medium and low findings loop by default; if the reviewer reports only `low` findings and the security-cycle counter is already at 2, surface the findings to Carlos and ask whether to fix or accept. Do not auto-skip.
+
+Announce: `Phase 7 — security: clean` or `Phase 7 — security: <N> findings (<critical>/<high>/<medium>/<low>), routing to implementer (cycle <K>/3)`
 
 ---
 
@@ -183,12 +211,13 @@ Track these counters in your state from the start of the workflow:
 | Implementer re-dispatches per batch | 3 | Stop, escalate with batch + what was tried |
 | Full-suite runs in Phase 6 | 3 | Stop, report state, wait for Carlos |
 | Total test/fix cycles across workflow | 5 | Stop, check in: "5 cycles done. State: X pass, Y fail. Continue or pause?" |
+| Security review cycles in Phase 7 | 3 | Stop, present open findings to Carlos with what's been tried, wait for direction |
 
 **Diagnose before retry:** before any retry dispatch, state the root cause in one sentence in your own output. If you cannot, you are guessing — stop and ask Carlos.
 
 **Cascade rule:** when failure-triager flags a cascade, fix root only. Do not iterate on downstream failures independently.
 
-**No silent test mutations:** every test modification logged with reason, reported in Phase 7.
+**No silent test mutations:** every test modification logged with reason, reported in Phase 8.
 
 ---
 
@@ -219,7 +248,9 @@ These cannot be overridden by CLAUDE.md.
 
 ---
 
-## Phase 7 — Handoff
+## Phase 8 — Handoff
+
+By the time you reach this phase: tests are green and security review is clean. Both gates passed.
 
 Dispatch `flow-reporter` with accumulated state:
 - Files changed
@@ -227,6 +258,7 @@ Dispatch `flow-reporter` with accumulated state:
 - Tests modified (list with reasons — Case 1 events)
 - Final test results
 - Coverage delta on touched files
+- Security findings resolved during Phase 7 (list with severity + category + file)
 - Deferred items (refactors noted, features cut)
 - Any guard trips or escalations that occurred
 
@@ -248,7 +280,8 @@ Phase 3 — plan ready for review
 Phase 4 — batch 1/3 — tests failing for right reason
 Phase 5 — batch 1/3 — green
 Phase 6 — full suite: 47/47, coverage 94%
-Phase 7 — handoff below
+Phase 7 — security: clean
+Phase 8 — handoff below
 ```
 
 Nothing more verbose. Carlos watches these to track progress; details come at gates and handoff.

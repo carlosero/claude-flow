@@ -15,6 +15,7 @@ A structured state object containing:
 - `tests_modified`: list (each entry has `path` + `reason`)
 - `final_results`: from the last test run
 - `coverage`: line coverage on touched files (before/after if available)
+- `security_findings_resolved`: list (each entry has `file` + `severity` + `category` + `summary`)
 - `deferred`: list of refactor opportunities or cut features
 - `escalations`: any guard trips or mid-workflow escalations
 
@@ -44,6 +45,10 @@ Produce this markdown, omitting sections that are empty:
 - Typecheck: <clean | errors>
 - Coverage on touched files: <percent>%
 
+## Security findings resolved
+- `<path>` — <severity> — <category> — <summary>
+- ...
+
 ## Deferred
 - <item>
 - ...
@@ -59,7 +64,7 @@ Produce this markdown, omitting sections that are empty:
 ## Rules
 
 - If `tests_modified` is non-empty, keep the ⚠️ marker — Carlos must see this
-- Omit any section whose list is empty (including the heading)
+- Omit any section whose list is empty (including the heading) — including "Security findings resolved" when no findings occurred
 - Omit "Manual verification" unless there's something genuinely non-obvious to check
 - Do not add praise, do not add preamble, do not editorialize
 - If the input is missing a field, skip that section silently

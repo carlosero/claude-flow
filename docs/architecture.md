@@ -44,6 +44,7 @@ Skills "chaining" was considered and rejected. Skills are contextual instruction
 | `flow-implementer` | Opus | Hardest reasoning task. Worth the cost. |
 | `flow-test-runner` | Haiku | Pure command execution and result parsing. No reasoning needed. |
 | `flow-failure-triager` | Sonnet | Classifying a failure into one of three buckets is judgment work, but bounded. |
+| `flow-security-reviewer` | Sonnet | Diff-scoped vulnerability review. Pattern recognition over a small surface, with judgment calls about severity and scope. Sonnet is sufficient; Opus would be overkill for a bounded checklist task. |
 | `flow-reporter` | Haiku | Templating from structured state. |
 
 The PM-then-architect split is intentional. The PM grounds the work in user-facing terms (what's being built, when it's done) regardless of size — the cheapest tier that can do that job well. The architect runs only when size is L, where architectural shape decisions warrant Opus and would otherwise dominate the planner's already-Opus call. For S/M tasks, the architect would be overkill and is skipped.
@@ -72,6 +73,7 @@ The guards layer multiple brakes:
 | Implementer re-dispatches per batch | 3 | Hard stop on whole-batch flailing |
 | Full-suite runs in Phase 6 | 3 | Hard stop on suite-level flailing |
 | Total test/fix cycles | 5 | Catch slow-burn waste |
+| Security review cycles in Phase 7 | 3 | Bound the review/fix loop; surface persistent findings instead of looping silently |
 | Cascade detection | 3+ failures with same root | Fix root only, not each downstream symptom |
 | Diagnose-before-retry | always | Force articulation of root cause before any retry |
 | No silent test mutations | always | Every test edit logged with reason |
@@ -104,6 +106,17 @@ Plans are produced as structured markdown so downstream subagents can extract sl
 **Code is not in the plan by default.** Plans describe architecture, not implementations. Carlos's design preference, but it also serves token discipline — Phase 3 review is faster when the plan is high-level.
 
 The exception: if the planner identifies a piece of *load-bearing core logic* (subtle state machine, complex contract), it includes a brief sketch tagged `[core logic preview]` so the user can sanity-check the shape before implementation. Use sparingly.
+
+## Why security review is its own phase, after tests pass
+
+Tests prove the code does what was specified. They generally do not prove the code is *safe* — a SQL injection or an unauthenticated route can sail through a green suite. Security review is a separate concern with separate failure modes, so it gets its own phase rather than being piled into the implementer or the test-author.
+
+Two design choices worth calling out:
+
+1. **Scope is the diff, not the codebase.** The reviewer looks at uncommitted changes only. Cataloguing pre-existing issues outside the changed lines would scope-creep every `/flow` run into a full audit. Out of scope.
+2. **Findings loop through the implementer, then the test runner, then back to the reviewer.** Tests re-run after every fix because security patches frequently change validation logic, query shape, or response payloads — exactly the surfaces the existing tests cover. Skipping the test run would let the reviewer happily mark a vulnerability resolved while quietly breaking a regression test. The cycle cap (3) bounds this loop the same way the test-fix caps bound Phase 5/6.
+
+Sonnet is the right tier for this work. Severity calls and "is this issue introduced by the diff" judgments are bounded pattern-recognition; the heavy lifting (writing the actual fix) lives in the Opus implementer call that the reviewer's findings dispatch into.
 
 ## CLAUDE.md handling
 

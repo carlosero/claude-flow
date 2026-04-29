@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-04-28
+
+### Added
+- `flow-security-reviewer` (Sonnet) — new Phase 7 subagent. Reviews the uncommitted diff for security issues (injection, XSS, auth/authz gaps including IDOR, secrets, frontend env leakage, CSRF, SSRF, path traversal, open redirect, insecure deserialization, mass assignment, weak crypto, CORS, sensitive logging) and returns a severity-tagged findings list. Scope is the diff, not the codebase.
+- **Phase 7 — Security review.** Runs after Phase 6 is green. Findings loop back through the implementer; the test-runner re-runs the full suite after each fix; the reviewer re-runs to confirm resolution. Loops until clean or the security-cycle cap (3) trips.
+- Anti-loop guard: **Security review cycles in Phase 7 (cap 3)**. On trip, the orchestrator surfaces open findings with what's been tried and waits for direction.
+- Reporter now emits a "Security findings resolved" section when applicable.
+
+### Changed
+- **Phases renumbered.** Handoff moves from Phase 7 to Phase 8 to make room for the security-review phase. New layout: `0=PM, 1=Triage, 2=Architect (L only), 3=Plan, 4=Tests, 5=Implement, 6=Full suite, 7=Security review, 8=Handoff`. Status-line examples and cross-phase references updated accordingly.
+
 ## [0.2.0] - 2026-04-28
 
 ### Added
@@ -34,6 +45,7 @@ Initial release.
 - Hard guards: no destructive operations, no auto-commits, no secrets in code or output
 - 90% line coverage requirement on touched files
 
-[Unreleased]: https://github.com/TODO-username/flow/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/TODO-username/flow/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/TODO-username/flow/releases/tag/v0.3.0
 [0.2.0]: https://github.com/TODO-username/flow/releases/tag/v0.2.0
 [0.1.0]: https://github.com/TODO-username/flow/releases/tag/v0.1.0

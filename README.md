@@ -13,12 +13,13 @@ The result: Opus only fires when judgment matters (planning, implementing). Sonn
 ## What you get
 
 - **`/flow {task}`** — single entrypoint that runs the full pipeline
-- **Phased workflow** — PM → triage → architect (L only) → plan → write failing tests → implement → run suite → report
+- **Phased workflow** — PM → triage → architect (L only) → plan → write failing tests → implement → run suite → security review → report
 - **Plan approval gate** — workflow stops for your review; three response paths handle proceed / revise / revise-and-proceed
-- **Anti-loop guards** — per-test attempt caps, implementer re-dispatch caps, total cycle circuit breaker, cascade detection
+- **Anti-loop guards** — per-test attempt caps, implementer re-dispatch caps, total cycle circuit breaker, security-review cycle cap, cascade detection
 - **Hard guards** — no destructive operations, no auto-commits, no secrets ever leaked
 - **Honest TDD** — failing tests must be proven failing for the right reason (missing behavior, not a syntax error) before implementation begins
 - **Coverage discipline** — 90% line coverage on files touched by the change
+- **Security review** — diff-scoped vulnerability check (injection, XSS, auth, secrets, frontend env leakage, CSRF, SSRF, etc.) before handoff; findings loop back through the implementer until clean
 
 ## Pipeline
 
@@ -43,7 +44,10 @@ The result: Opus only fires when judgment matters (planning, implementing). Sonn
 [Phase 6] Test Runner (Haiku)        full suite + typecheck + coverage
           Failure Triager (Sonnet)   classifies failures: test-wrong / plan-wrong / code-wrong
   ↓
-[Phase 7] Reporter (Haiku)           formatted handoff
+[Phase 7] Security Reviewer (Sonnet) diff-scoped vulnerability review
+          Implementer (Opus)         fixes findings; suite + reviewer re-run until clean
+  ↓
+[Phase 8] Reporter (Haiku)           formatted handoff
 ```
 
 For phase-by-phase detail, see [docs/workflow.md](docs/workflow.md).
@@ -97,6 +101,7 @@ The biggest token-waste risk in AI-assisted TDD is unconscious test/fix looping.
 | Implementer re-dispatches per batch | 3 | Stop, escalate |
 | Full-suite runs in Phase 6 | 3 | Stop, report state |
 | Total test/fix cycles across workflow | 5 | Stop, check in |
+| Security review cycles in Phase 7 | 3 | Stop, present open findings and wait for direction |
 
 A "diagnose before retry" rule requires the orchestrator to articulate a one-sentence root cause before any retry dispatch. If it can't articulate, it asks you instead.
 
@@ -131,6 +136,7 @@ Subagent model assignments are set in each agent's frontmatter. To change them, 
 - `agents/flow-implementer.md` — Opus
 - `agents/flow-test-runner.md` — Haiku
 - `agents/flow-failure-triager.md` — Sonnet
+- `agents/flow-security-reviewer.md` — Sonnet
 - `agents/flow-reporter.md` — Haiku
 
 Any model alias (`opus`, `sonnet`, `haiku`) or full model ID is accepted.

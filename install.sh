@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # /flow v2 installer — Claude Code user-level
-# Installs the flow skill and all 9 subagents into ~/.claude/
+# Installs the flow skill and all 10 subagents into ~/.claude/
 #   pm, triager, architect, planner, test-author, implementer,
-#   test-runner, failure-triager, reporter
+#   test-runner, failure-triager, security-reviewer, reporter
 
 set -e
 
