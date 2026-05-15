@@ -31,6 +31,30 @@ Why split this way? Two reasons:
 
 Skills "chaining" was considered and rejected. Skills are contextual instruction sets, not runtime processes. Chaining them would mean reading more instructions in the same context — which is exactly the problem we're trying to avoid.
 
+## The task directory: file-based artifacts
+
+Every `/flow` run creates a per-task directory at `~/.claude/tasks/{project_folder}/{unix_ts}/`. Six artifacts live there, each owned by a single agent:
+
+| File | Owner | Content |
+|---|---|---|
+| TASK.md | PM | Feature paragraph, AC checkboxes, out-of-scope, open assumptions |
+| ARCHITECT.md | Architect | Shape, subsystems, data flow, integration points, trade-offs |
+| PLAN.md | Planner | Goal, approach, batches, AC-to-batch mapping, risks, rollback |
+| SECURITY.md | Security reviewer | Findings (overwritten each cycle, with prior-cycle resolution notes) |
+| REPORT.md | Reporter | Phase 8 handoff summary |
+| STATE.md | Orchestrator | Task metadata, triage, counters, batch progress, modified-test log, escalations |
+
+The orchestrator has two narrow exceptions to owner-only writes: it maintains STATE.md throughout, and it ticks AC checkboxes in TASK.md as each Phase 5 batch turns green (the AC-to-batch mapping in PLAN.md tells it which boxes to tick). The architect cannot edit TASK.md — when it detects an AC conflict, it returns `status: conflict` and the orchestrator rewrites TASK.md per user direction, then re-dispatches.
+
+Why files instead of in-band context passing?
+
+1. **Subagents stay stateless.** Each dispatch tells the agent where the task dir is; the agent resolves its inputs by Read. The orchestrator stops re-quoting spec/architecture/plan content into every dispatch, which was the dominant token cost on long flows.
+2. **Single source of truth.** When the planner gets re-dispatched with revision feedback, it overwrites PLAN.md. Every downstream agent that later reads PLAN.md sees the revised version, not a stale snapshot from a tool result.
+3. **User can hand-edit.** Between phases, the user can refine TASK.md AC, tweak ARCHITECT.md trade-offs, or adjust PLAN.md notes. Re-dispatched agents re-read on entry, so edits take effect immediately.
+4. **Audit trail.** After a flow finishes, the task dir is a paper trail of what was specified, what was decided, what shipped. The reporter reads the whole dir to compose REPORT.md.
+
+Trade-offs: machine-global state means tasks accumulate at `~/.claude/tasks/` until a future cleanup mechanism is added. Two `/flow` runs in the same project in the same second would collide on the directory name, which is theoretically possible and practically not.
+
 ## Model tier assignments
 
 | Subagent | Model | Reason |
@@ -38,7 +62,7 @@ Skills "chaining" was considered and rejected. Skills are contextual instruction
 | Orchestrator (the skill) | inherits session model | Lightweight state machine, no heavy lifting |
 | `flow-pm` | Sonnet | First responder. Defining a feature + acceptance criteria is judgment work but bounded — Sonnet is sufficient and the architect handles the heavy reasoning for L. |
 | `flow-triager` | Haiku | Pattern-match against rubric, classify, parse files. Cheap. |
-| `flow-architect` | Opus | L-only. Architectural shape decisions are load-bearing for the planner; deep judgment about subsystems and integration warrants Opus. Skipped entirely for S/M. |
+| `flow-architect` | Opus | Runs on every task. Architectural shape decisions are load-bearing for the planner; deep judgment about subsystems and integration warrants Opus. Calibrates depth to triage size — quick sweep on S, deeper read on L. Also owns the AC-conflict channel (see below). |
 | `flow-planner` | Opus + ultrathink keyword | Highest-leverage call in the pipeline. A bad plan poisons every later phase. |
 | `flow-test-author` | Sonnet | Competent test writing. Doesn't need Opus. Self-runs to prove failure. |
 | `flow-implementer` | Opus | Hardest reasoning task. Worth the cost. |
@@ -47,13 +71,13 @@ Skills "chaining" was considered and rejected. Skills are contextual instruction
 | `flow-security-reviewer` | Sonnet | Diff-scoped vulnerability review. Pattern recognition over a small surface, with judgment calls about severity and scope. Sonnet is sufficient; Opus would be overkill for a bounded checklist task. |
 | `flow-reporter` | Haiku | Templating from structured state. |
 
-The PM-then-architect split is intentional. The PM grounds the work in user-facing terms (what's being built, when it's done) regardless of size — the cheapest tier that can do that job well. The architect runs only when size is L, where architectural shape decisions warrant Opus and would otherwise dominate the planner's already-Opus call. For S/M tasks, the architect would be overkill and is skipped.
+The PM-then-architect split is intentional. The PM grounds the work in user-facing terms (what's being built, when it's done) — no code, no architecture, just observable AC. The architect then translates AC into shape: subsystems, data flow, integration points. The split protects testability (AC stay observable instead of leaking into code shape) and creates a conflict channel: when the architect cannot satisfy an AC with any sensible architecture, it returns `status: conflict` and the orchestrator surfaces the AC to the user, who decides how TASK.md should change. The architect runs on every task — by the time you've reached for `/flow`, you've decided the work isn't trivial enough to skip a written shape.
 
 ## Why merge test-author and test-runner for the cold path, but split for the hot path
 
 **Cold path (Phase 4 — initial test writing):** the test-author writes tests AND runs them itself, proves they fail for the right reason, then returns. One subagent, Sonnet.
 
-**Hot path (Phase 5/6 — implementation):** test-runner is its own dedicated Haiku subagent that the orchestrator dispatches separately from the implementer.
+**Hot path (Phase 5/7 — implementation and full suite):** test-runner is its own dedicated Haiku subagent that the orchestrator dispatches separately from the implementer.
 
 Why the asymmetry?
 
@@ -71,9 +95,10 @@ The guards layer multiple brakes:
 |---|---|---|
 | Per-test fix attempts | 3 | Hard stop on individual flailing |
 | Implementer re-dispatches per batch | 3 | Hard stop on whole-batch flailing |
-| Full-suite runs in Phase 6 | 3 | Hard stop on suite-level flailing |
+| Full-suite runs in Phase 7 | 3 | Hard stop on suite-level flailing |
 | Total test/fix cycles | 5 | Catch slow-burn waste |
-| Security review cycles in Phase 7 | 3 | Bound the review/fix loop; surface persistent findings instead of looping silently |
+| Security review cycles in Phase 6 | 3 | Bound the review/fix loop; surface persistent findings instead of looping silently |
+| Architect/TASK conflict cycles | 3 | Bound the architect↔TASK.md rewrite loop; surface to user if AC cannot be stabilized |
 | Cascade detection | 3+ failures with same root | Fix root only, not each downstream symptom |
 | Diagnose-before-retry | always | Force articulation of root cause before any retry |
 | No silent test mutations | always | Every test edit logged with reason |
@@ -94,27 +119,29 @@ The third path was contentious. It means the orchestrator updates the plan and m
 
 ## Plan format
 
-Plans are produced as structured markdown so downstream subagents can extract slices. The planner outputs:
+PLAN.md is produced as structured markdown so downstream subagents can extract slices. The planner outputs:
 
 1. **Goal** — one sentence
 2. **Approach** — 1–3 architecture bullets
-3. **Batches** — ordered list (each: name, files, test strategy, impl notes)
+3. **Batches** — ordered list (each: name, files, test strategy, impl notes, Satisfies AC indices)
 4. **TDD scaling choice** — `all-upfront` / `batched` / `iterative`
-5. **Risks & assumptions**
-6. **Rollback** (only when destructive ops are involved)
+5. **AC → Batch mapping** — every AC checkbox in TASK.md mapped to the batch(es) that satisfy it; orchestrator uses this to tick checkboxes after each batch turns green
+6. **Risks & assumptions**
+7. **Rollback** (only when destructive ops are involved)
 
-**Code is not in the plan by default.** Plans describe architecture, not implementations. Carlos's design preference, but it also serves token discipline — Phase 3 review is faster when the plan is high-level.
+**Code is not in the plan by default.** Plans describe architecture, not implementations. The intent is design clarity, but it also serves token discipline — Phase 3 review is faster when the plan is high-level.
 
 The exception: if the planner identifies a piece of *load-bearing core logic* (subtle state machine, complex contract), it includes a brief sketch tagged `[core logic preview]` so the user can sanity-check the shape before implementation. Use sparingly.
 
-## Why security review is its own phase, after tests pass
+## Why security review is its own phase, before the full suite
 
 Tests prove the code does what was specified. They generally do not prove the code is *safe* — a SQL injection or an unauthenticated route can sail through a green suite. Security review is a separate concern with separate failure modes, so it gets its own phase rather than being piled into the implementer or the test-author.
 
-Two design choices worth calling out:
+Three design choices worth calling out:
 
 1. **Scope is the diff, not the codebase.** The reviewer looks at uncommitted changes only. Cataloguing pre-existing issues outside the changed lines would scope-creep every `/flow` run into a full audit. Out of scope.
-2. **Findings loop through the implementer, then the test runner, then back to the reviewer.** Tests re-run after every fix because security patches frequently change validation logic, query shape, or response payloads — exactly the surfaces the existing tests cover. Skipping the test run would let the reviewer happily mark a vulnerability resolved while quietly breaking a regression test. The cycle cap (3) bounds this loop the same way the test-fix caps bound Phase 5/6.
+2. **Security review runs before the full suite.** Per-batch tests at the end of Phase 5 already prove the new behavior works. The full suite is the most expensive test invocation in the pipeline. If the reviewer finds something that requires code changes, the full suite would have to re-run anyway — so it's cheaper to review first and run the suite once, at the end, as the final gate. Earlier versions of Flow ran the suite first; that ordering wasted a full pass every time security had findings.
+3. **No test run inside the security loop.** After the implementer fixes findings, the orchestrator goes straight back to the reviewer — no test invocation between them. The Phase 7 full suite is the gate; if a security fix breaks a test, the failure-triager picks it up there. The cycle cap (3) bounds this loop the same way the test-fix caps bound Phase 5/7. Trade-off: a regression caused by a security patch is discovered one phase later than it would be if we kept testing in the loop. In exchange, the happy path runs the full suite once instead of up to four times.
 
 Sonnet is the right tier for this work. Severity calls and "is this issue introduced by the diff" judgments are bounded pattern-recognition; the heavy lifting (writing the actual fix) lives in the Opus implementer call that the reviewer's findings dispatch into.
 

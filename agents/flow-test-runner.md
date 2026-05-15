@@ -1,6 +1,6 @@
 ---
 name: flow-test-runner
-description: Executes test and typecheck commands for /flow pipeline and reports structured results. Called in Phase 5 (batch-scoped) and Phase 6 (full suite + typecheck). No code writing, no reasoning — pure command execution and result parsing.
+description: Executes test and typecheck commands for /flow pipeline and reports structured results. Called in Phase 5 (batch-scoped) and Phase 7 (full suite + typecheck). No code writing, no reasoning — pure command execution and result parsing.
 model: claude-haiku-4-5-20251001
 tools: Bash, Read
 ---

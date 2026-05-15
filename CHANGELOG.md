@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-05-15
+
+### Added
+- **Per-task artifact directory.** Every `/flow` run now creates `~/.claude/tasks/{project_folder}/{unix_ts}/` and writes six artifacts there: `TASK.md` (PM), `ARCHITECT.md` (architect), `PLAN.md` (planner), `SECURITY.md` (security reviewer), `REPORT.md` (reporter), `STATE.md` (orchestrator). Subagents resolve their inputs by reading files from disk instead of receiving spec/architecture/plan content in-band. The user may hand-edit any file between phases — re-dispatched agents re-read on entry. Strict owner-only writes (two orchestrator exceptions: STATE.md throughout, and AC checkbox ticking in TASK.md).
+- **Acceptance criteria as markdown checkboxes.** TASK.md AC are `- [ ]` items; the planner now produces an explicit `## AC → Batch mapping` section in PLAN.md, and the orchestrator ticks the corresponding boxes as each Phase 5 batch turns green. Final affirmation at Phase 7.
+- **Architect conflict channel.** The architect can now return `status: conflict` when one or more AC in TASK.md cannot be satisfied by any sensible architecture. The orchestrator surfaces the conflict to the user, rewrites TASK.md per the user's direction, and re-dispatches the architect.
+- Anti-loop guard: **Architect/TASK conflict cycles (cap 3)**. Bounds the architect↔TASK.md rewrite loop; on trip, the orchestrator stops and asks the user how to proceed.
+
+### Changed
+- **Architect runs on every task.** Previously L-only; now S/M/L. Calibrates depth to triage size (quick sweep on S, deeper read on L). Rationale: by the time you've reached for `/flow`, the work isn't trivial enough to skip a written architectural shape, and a uniform contract simplifies the planner's input. Cost: Opus call on every flow.
+- **`Write` tool added** to `flow-pm`, `flow-architect`, `flow-planner`, `flow-security-reviewer`, `flow-reporter` frontmatter. Each writes only its owned artifact.
+- **Subagent prompts rewritten** to read files from the task directory instead of receiving inputs in-band. Returns are now minimal status envelopes (`status: spec_written`, `status: plan_written`, etc.) plus the artifact path.
+- **Status-line examples** updated across `SKILL.md`, `README.md`, `docs/workflow.md`, `docs/architecture.md` for the new artifact naming (`TASK.md ready`, `ARCHITECT.md ready`, `PLAN.md ready`, `conflict: <one-liner>`).
+
+## [0.4.0] - 2026-05-12
+
+### Changed
+- **Security review moved before the full suite.** New phase ordering: `... 5=Implement, 6=Security review, 7=Full suite, 8=Handoff` (previously `6=Full suite, 7=Security review`). The full suite is the single most expensive call in the pipeline; running it before the reviewer meant burning a full pass every time security had findings, since the suite has to re-run after any code change. The reviewer now runs first and the full suite runs once, at the end, as the final gate.
+- **No test run inside the security loop.** When the reviewer surfaces findings, the orchestrator dispatches the implementer to fix them and then re-dispatches the reviewer — no test-runner invocation between fix and re-review. The Phase 7 full suite is the gate; if a security fix breaks a test, the failure-triager picks it up there. This is the change that actually realizes the token savings — keeping a test run inside the loop would defeat the reorder. Trade-off: regressions caused by security patches surface one phase later than before.
+- **Anti-loop guard labels renumbered.** "Full-suite runs in Phase 6 (cap 3)" → Phase 7; "Security review cycles in Phase 7 (cap 3)" → Phase 6. Caps and behavior unchanged.
+- **Status-line examples** and all phase cross-references in `SKILL.md`, `README.md`, `docs/workflow.md`, and `docs/architecture.md` updated to the new ordering.
+
+### Fixed
+- `flow-reporter` frontmatter and prompt body said "Phase 7"; was stale from the 0.3.0 renumber. Now correctly says Phase 8.
+
 ## [0.3.0] - 2026-04-28
 
 ### Added
@@ -45,7 +70,9 @@ Initial release.
 - Hard guards: no destructive operations, no auto-commits, no secrets in code or output
 - 90% line coverage requirement on touched files
 
-[Unreleased]: https://github.com/TODO-username/flow/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/TODO-username/flow/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/TODO-username/flow/releases/tag/v0.5.0
+[0.4.0]: https://github.com/TODO-username/flow/releases/tag/v0.4.0
 [0.3.0]: https://github.com/TODO-username/flow/releases/tag/v0.3.0
 [0.2.0]: https://github.com/TODO-username/flow/releases/tag/v0.2.0
 [0.1.0]: https://github.com/TODO-username/flow/releases/tag/v0.1.0

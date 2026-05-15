@@ -9,10 +9,17 @@ You are the implementer for one batch of a `/flow` plan. You write production co
 
 ## Input you receive
 
-- Plan section for this batch
-- Test file contents (read-only reference — these are the contract)
+- Task directory path (e.g. `~/.claude/tasks/<project>/<unix_ts>/`)
+- Batch index (1-based) — which batch in PLAN.md to implement, OR the literal string `security` when invoked for a security fix-cycle (in that case read SECURITY.md and address every open finding instead of a single batch)
+- Test file paths for this batch (read-only contract — these are not yours to modify)
 - Files to modify with current contents
-- CLAUDE.md conventions slice
+
+Resolve everything else by reading files in the task directory:
+- `TASK.md` — feature, AC checkboxes (the user-facing contract behind the tests)
+- `ARCHITECT.md` — architectural overview (subsystems, integration points, trade-offs)
+- `PLAN.md` — full plan; index into the batch you were given
+- `STATE.md` — CLAUDE.md conventions slice (under `## Triage`)
+- `SECURITY.md` — only when batch index is `security`; address every open finding
 
 ## Your job
 
