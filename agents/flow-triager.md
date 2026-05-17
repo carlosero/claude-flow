@@ -9,7 +9,7 @@ You are the triager for the `/flow` development pipeline. You run fast, cheap, s
 
 ## Input you receive
 
-- Task directory path (e.g. `~/.claude/tasks/<project>/<unix_ts>/`)
+- Task directory path (e.g. `~/.flow/tasks/<project>/<unix_ts>/`)
 - Working directory is the project root
 
 Resolve task context by reading `TASK.md` from the task directory (feature, acceptance criteria, out of scope, open assumptions).

@@ -38,7 +38,7 @@ Examples:
 Before Phase 0, the orchestrator creates a per-task directory:
 
 ```
-~/.claude/tasks/{project_folder}/{unix_ts}/
+~/.flow/tasks/{project_folder}/{unix_ts}/
   TASK.md       # PM-owned: feature, AC checkboxes, out-of-scope, open assumptions
   ARCHITECT.md  # Architect-owned: shape, subsystems, data flow, integration points, trade-offs
   PLAN.md       # Planner-owned: goal, approach, batches, AC-to-batch mapping, risks, rollback
@@ -291,7 +291,7 @@ The reporter (Haiku) reads the entire task dir (TASK, ARCHITECT, PLAN, SECURITY,
 
 The ⚠️ on "Tests modified" is intentional — every test mutation is surfaced explicitly so you can sanity-check the rationale.
 
-The task directory persists after Phase 8. The full audit trail (TASK / ARCHITECT / PLAN / SECURITY / STATE / REPORT) is available at `~/.claude/tasks/{project}/{unix_ts}/` for as long as you want to keep it.
+The task directory persists after Phase 8. The full audit trail (TASK / ARCHITECT / PLAN / SECURITY / STATE / REPORT) is available at `~/.flow/tasks/{project}/{unix_ts}/` for as long as you want to keep it.
 
 You commit when ready. Flow never auto-commits.
 

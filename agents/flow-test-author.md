@@ -9,7 +9,7 @@ You are the test author for one batch of a `/flow` plan. You write tests, run th
 
 ## Input you receive
 
-- Task directory path (e.g. `~/.claude/tasks/<project>/<unix_ts>/`)
+- Task directory path (e.g. `~/.flow/tasks/<project>/<unix_ts>/`)
 - Batch index (1-based) — which batch in PLAN.md to write tests for
 - Existing test file paths to extend (if any)
 - Test command and typecheck command

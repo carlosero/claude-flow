@@ -7,10 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-05-17
+
+### Fixed
+- **Plan-approval gate now hard-stops the orchestrator turn.** Phase 3 previously said "Present PLAN.md. Route Carlos's response." with no explicit pause directive, so the orchestrator could walk straight from Phase 3 through Phases 4–7 in a single turn (observed in the wild under Claude Code's auto-accept-edits mode). The gate now explicitly instructs the orchestrator to end its turn after presenting the plan and resume only on the user's next message — not overridable by auto-accept, `/loop`, or project `CLAUDE.md`. Mirrored in `SKILL.md`, `README.md`, and `docs/architecture.md` per the guard-duplication rule.
+
 ## [0.5.0] - 2026-05-15
 
 ### Added
-- **Per-task artifact directory.** Every `/flow` run now creates `~/.claude/tasks/{project_folder}/{unix_ts}/` and writes six artifacts there: `TASK.md` (PM), `ARCHITECT.md` (architect), `PLAN.md` (planner), `SECURITY.md` (security reviewer), `REPORT.md` (reporter), `STATE.md` (orchestrator). Subagents resolve their inputs by reading files from disk instead of receiving spec/architecture/plan content in-band. The user may hand-edit any file between phases — re-dispatched agents re-read on entry. Strict owner-only writes (two orchestrator exceptions: STATE.md throughout, and AC checkbox ticking in TASK.md).
+- **Per-task artifact directory.** Every `/flow` run now creates `~/.flow/tasks/{project_folder}/{unix_ts}/` and writes six artifacts there: `TASK.md` (PM), `ARCHITECT.md` (architect), `PLAN.md` (planner), `SECURITY.md` (security reviewer), `REPORT.md` (reporter), `STATE.md` (orchestrator). Subagents resolve their inputs by reading files from disk instead of receiving spec/architecture/plan content in-band. The user may hand-edit any file between phases — re-dispatched agents re-read on entry. Strict owner-only writes (two orchestrator exceptions: STATE.md throughout, and AC checkbox ticking in TASK.md).
 - **Acceptance criteria as markdown checkboxes.** TASK.md AC are `- [ ]` items; the planner now produces an explicit `## AC → Batch mapping` section in PLAN.md, and the orchestrator ticks the corresponding boxes as each Phase 5 batch turns green. Final affirmation at Phase 7.
 - **Architect conflict channel.** The architect can now return `status: conflict` when one or more AC in TASK.md cannot be satisfied by any sensible architecture. The orchestrator surfaces the conflict to the user, rewrites TASK.md per the user's direction, and re-dispatches the architect.
 - Anti-loop guard: **Architect/TASK conflict cycles (cap 3)**. Bounds the architect↔TASK.md rewrite loop; on trip, the orchestrator stops and asks the user how to proceed.
@@ -70,7 +75,8 @@ Initial release.
 - Hard guards: no destructive operations, no auto-commits, no secrets in code or output
 - 90% line coverage requirement on touched files
 
-[Unreleased]: https://github.com/TODO-username/flow/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/TODO-username/flow/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/TODO-username/flow/releases/tag/v0.5.1
 [0.5.0]: https://github.com/TODO-username/flow/releases/tag/v0.5.0
 [0.4.0]: https://github.com/TODO-username/flow/releases/tag/v0.4.0
 [0.3.0]: https://github.com/TODO-username/flow/releases/tag/v0.3.0

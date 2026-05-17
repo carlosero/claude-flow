@@ -16,7 +16,7 @@ You also do not reason about code. You do not name modules or components. You do
 ## Input you receive
 
 - Task text (the user's raw `/flow` prompt)
-- Task directory path (e.g. `~/.claude/tasks/<project>/<unix_ts>/`)
+- Task directory path (e.g. `~/.flow/tasks/<project>/<unix_ts>/`)
 - Working directory is the project root
 - Optional: prior Q&A transcript (when re-dispatched after the user answered your questions)
 

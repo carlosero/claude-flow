@@ -14,8 +14,8 @@ The result: Opus only fires when judgment matters (planning, implementing). Sonn
 
 - **`/flow {task}`** — single entrypoint that runs the full pipeline
 - **Phased workflow** — PM → triage → architect → plan → write failing tests → implement → security review → run suite → report
-- **Per-task artifact directory** — every run gets `~/.claude/tasks/{project}/{unix_ts}/` with TASK.md, ARCHITECT.md, PLAN.md, SECURITY.md, REPORT.md, STATE.md. Subagents read from disk instead of in-band context; you can hand-edit any artifact between phases.
-- **Plan approval gate** — workflow stops for your review; three response paths handle proceed / revise / revise-and-proceed
+- **Per-task artifact directory** — every run gets `~/.flow/tasks/{project}/{unix_ts}/` with TASK.md, ARCHITECT.md, PLAN.md, SECURITY.md, REPORT.md, STATE.md. Subagents read from disk instead of in-band context; you can hand-edit any artifact between phases.
+- **Plan approval gate** — workflow hard-stops for your review and ends the turn; three response paths handle proceed / revise / revise-and-proceed. Not overridable by auto-accept mode, `/loop`, or project `CLAUDE.md`
 - **Architect conflict channel** — architect can return `status: conflict` when an AC in TASK.md cannot be satisfied by any sensible architecture; orchestrator surfaces to you, rewrites TASK.md per your direction, re-dispatches
 - **Anti-loop guards** — per-test attempt caps, implementer re-dispatch caps, total cycle circuit breaker, security-review cycle cap, architect/TASK conflict cycle cap, cascade detection
 - **Hard guards** — no destructive operations, no auto-commits, no secrets ever leaked
@@ -28,7 +28,7 @@ The result: Opus only fires when judgment matters (planning, implementing). Sonn
 ```
 /flow {task}
   ↓
-[setup]   orchestrator creates ~/.claude/tasks/{project}/{unix_ts}/ and writes STATE.md
+[setup]   orchestrator creates ~/.flow/tasks/{project}/{unix_ts}/ and writes STATE.md
   ↓
 [Phase 0] PM (Sonnet)                writes TASK.md (feature, AC checkboxes, out-of-scope); 0–15 questions if needed
   ↓

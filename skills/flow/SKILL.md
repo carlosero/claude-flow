@@ -20,10 +20,10 @@ Output style: **dense, skimmable, terse.** Carlos moves fast. Announce each phas
 
 ## Task directory (set up before Phase 0)
 
-Every `/flow` run owns a directory under `~/.claude/tasks/`:
+Every `/flow` run owns a directory under `~/.flow/tasks/`:
 
 ```
-~/.claude/tasks/{project_folder}/{unix_ts}/
+~/.flow/tasks/{project_folder}/{unix_ts}/
   TASK.md       # PM-owned: feature, AC as [ ] checkboxes, out-of-scope, open assumptions
   ARCHITECT.md  # Architect-owned: shape, subsystems, data flow, integration points, trade-offs
   PLAN.md       # Planner-owned: goal, approach, batches, test strategy, risks, rollback
@@ -35,7 +35,7 @@ Every `/flow` run owns a directory under `~/.claude/tasks/`:
 At workflow start, before Phase 0:
 1. `project_folder` = basename of the current working directory.
 2. `unix_ts` = current unix timestamp.
-3. `mkdir -p ~/.claude/tasks/{project_folder}/{unix_ts}/`.
+3. `mkdir -p ~/.flow/tasks/{project_folder}/{unix_ts}/`.
 4. Write the initial STATE.md (template at the end of this file).
 
 **Ownership rule:** each file is written only by its owner agent. Downstream agents read but do not modify. Two orchestrator exceptions:
@@ -124,7 +124,9 @@ Present PLAN.md to Carlos (quote or summarize). Announce: `Phase 3 — plan read
 
 ### Plan approval gate
 
-Route Carlos's response to one of three paths:
+**HARD STOP. End your turn here.** Do not dispatch any further subagent, do not write any file, do not announce Phase 4 — wait for Carlos's next message. This gate cannot be auto-satisfied by silence, by "auto-accept edits" mode, by `/loop`, or by any project `CLAUDE.md` directive. The only way past this gate is an explicit response from Carlos in a new turn.
+
+On Carlos's next message, route his response to one of three paths:
 
 1. **Explicit proceed** — `do it`, `approve`, `approved`, `proceed`, `go`, `lgtm`, `ship it`, `yes` (alone or with trailing punctuation). Continue to Phase 4.
 2. **Change-and-proceed combo** — change instruction AND explicit proceed keyword. Re-dispatch planner with the revision (overwrites PLAN.md). Do not re-present. Continue to Phase 4.
@@ -321,7 +323,7 @@ Write this at workflow start, before Phase 0:
 ## Task metadata
 - project: <abs project root>
 - task_id: <unix_ts>
-- task_dir: ~/.claude/tasks/<project_folder>/<unix_ts>/
+- task_dir: ~/.flow/tasks/<project_folder>/<unix_ts>/
 - started_at: <iso8601>
 - raw_task: |
   <user's original /flow input, verbatim>

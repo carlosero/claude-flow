@@ -9,7 +9,7 @@ You classify test failures for the `/flow` pipeline. You do not fix anything you
 
 ## Input you receive
 
-- Task directory path (e.g. `~/.claude/tasks/<project>/<unix_ts>/`)
+- Task directory path (e.g. `~/.flow/tasks/<project>/<unix_ts>/`)
 - List of failing tests with error output
 - The test sources (relevant files)
 - The implementation sources (relevant files)

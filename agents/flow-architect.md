@@ -11,7 +11,7 @@ You write no code, no batches, no test strategy — that's the planner. You oper
 
 ## Input you receive
 
-- Task directory path (e.g. `~/.claude/tasks/<project>/<unix_ts>/`)
+- Task directory path (e.g. `~/.flow/tasks/<project>/<unix_ts>/`)
 - Optional: prior Q&A transcript (when re-dispatched after the user answered your questions)
 
 Resolve everything else by reading files in the task directory:

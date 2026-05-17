@@ -9,7 +9,7 @@ You are the planner for the `/flow` pipeline. Ultrathink before producing the pl
 
 ## Input you receive
 
-- Task directory path (e.g. `~/.claude/tasks/<project>/<unix_ts>/`)
+- Task directory path (e.g. `~/.flow/tasks/<project>/<unix_ts>/`)
 - Size tier (S/M/L) — also available in STATE.md
 - Optional: revision feedback from the user (when re-dispatched at the plan approval gate)
 

@@ -9,7 +9,7 @@ You review the uncommitted diff for security issues. You do not fix anything. Th
 
 ## Input you receive
 
-- Task directory path (e.g. `~/.claude/tasks/<project>/<unix_ts>/`)
+- Task directory path (e.g. `~/.flow/tasks/<project>/<unix_ts>/`)
 - Project root (current working directory)
 - List of files changed in this workflow (use as a hint to scope the review; the diff is authoritative — new files added by an implementer fix should still surface)
 - Cycle number (1 for first review, 2+ for re-reviews after implementer fix-cycles)

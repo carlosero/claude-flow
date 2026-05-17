@@ -33,7 +33,7 @@ Skills "chaining" was considered and rejected. Skills are contextual instruction
 
 ## The task directory: file-based artifacts
 
-Every `/flow` run creates a per-task directory at `~/.claude/tasks/{project_folder}/{unix_ts}/`. Six artifacts live there, each owned by a single agent:
+Every `/flow` run creates a per-task directory at `~/.flow/tasks/{project_folder}/{unix_ts}/`. Six artifacts live there, each owned by a single agent:
 
 | File | Owner | Content |
 |---|---|---|
@@ -53,7 +53,7 @@ Why files instead of in-band context passing?
 3. **User can hand-edit.** Between phases, the user can refine TASK.md AC, tweak ARCHITECT.md trade-offs, or adjust PLAN.md notes. Re-dispatched agents re-read on entry, so edits take effect immediately.
 4. **Audit trail.** After a flow finishes, the task dir is a paper trail of what was specified, what was decided, what shipped. The reporter reads the whole dir to compose REPORT.md.
 
-Trade-offs: machine-global state means tasks accumulate at `~/.claude/tasks/` until a future cleanup mechanism is added. Two `/flow` runs in the same project in the same second would collide on the directory name, which is theoretically possible and practically not.
+Trade-offs: machine-global state means tasks accumulate at `~/.flow/tasks/` until a future cleanup mechanism is added. Two `/flow` runs in the same project in the same second would collide on the directory name, which is theoretically possible and practically not.
 
 ## Model tier assignments
 
@@ -109,7 +109,7 @@ If guards trigger too aggressively for your workflow, raise them in the orchestr
 
 ## The plan-approval gate
 
-Phase 3 is the only mid-pipeline gate where flow stops and waits for the user explicitly to approve a structured artifact. (Phases 0 and 2 also stop for user input, but only when the PM or architect surfaces questions — and only to gather answers, not to approve an artifact.) The three response paths at the plan gate exist because real plan reviews aren't binary:
+Phase 3 is the only mid-pipeline gate where flow stops and waits for the user explicitly to approve a structured artifact. (Phases 0 and 2 also stop for user input, but only when the PM or architect surfaces questions — and only to gather answers, not to approve an artifact.) The gate is a **hard stop**: the orchestrator ends its turn after presenting PLAN.md and resumes only on the user's next message. This is duplicated across `SKILL.md`, `README.md`, and this document because earlier versions of the skill left the wording implicit ("Present plan. Route response.") and the orchestrator was observed walking straight through Phases 4–7 in a single turn when run under auto-accept mode. The gate cannot be overridden by `CLAUDE.md`, `/loop`, or auto-accept. The three response paths at the plan gate exist because real plan reviews aren't binary:
 
 1. **Explicit proceed** ("approve", "go", "lgtm", etc.) — continue
 2. **Question or change request** — revise, re-present, back to gate
