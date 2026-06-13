@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`/flow-lite` skill.** A lightweight clarify-then-do workflow for small or non-development tasks. Four steps: (1) if the prompt mentions "read files" or an equivalent, ground in the relevant code first; (2) ask up to 8 sharp clarifying questions (`AskUserQuestion` preferred for discrete choices) and end the turn; (3) do the work directly — explicitly NOT TDD; (4) for dev tasks with existing related test files, update the tests *after* the change to cover the new behavior, run them, and fix any regressions (deciding per-failure whether the code or the test was wrong). No subagents, no batches, no security gate. Hard guards mirror `/flow`. Installer now copies every skill directory under `skills/`, so both `/flow` and `/flow-lite` install with one `./install.sh` run.
+
 ## [0.5.1] - 2026-05-17
 
 ### Fixed

@@ -1,23 +1,27 @@
 #!/usr/bin/env bash
-# /flow v2 installer — Claude Code user-level
-# Installs the flow skill and all 10 subagents into ~/.claude/
-#   pm, triager, architect, planner, test-author, implementer,
-#   test-runner, failure-triager, security-reviewer, reporter
+# /flow + /flow-lite installer — Claude Code user-level
+# Installs every skill under skills/ and all flow-* subagents into ~/.claude/
+#   skills:  flow (full orchestrated pipeline), flow-lite (clarify-then-do)
+#   agents:  pm, triager, architect, planner, test-author, implementer,
+#            test-runner, failure-triager, security-reviewer, reporter
 
 set -e
 
-SKILL_DIR="$HOME/.claude/skills/flow"
+SKILLS_DIR="$HOME/.claude/skills"
 AGENTS_DIR="$HOME/.claude/agents"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-echo "Installing /flow v2 to user-level Claude Code..."
+echo "Installing flow skills to user-level Claude Code..."
 
-# Remove any existing v1
-if [ -d "$SKILL_DIR" ]; then
-  echo "  → removing existing ~/.claude/skills/flow/"
-  rm -rf "$SKILL_DIR"
-fi
+# Remove any existing installations of skills we ship
+for skill_src in "$SCRIPT_DIR/skills"/*/; do
+  name="$(basename "$skill_src")"
+  if [ -d "$SKILLS_DIR/$name" ]; then
+    echo "  → removing existing $SKILLS_DIR/$name/"
+    rm -rf "$SKILLS_DIR/$name"
+  fi
+done
 
 # Remove any existing flow-* agents from prior attempts
 for agent in "$AGENTS_DIR"/flow-*.md; do
@@ -28,12 +32,18 @@ for agent in "$AGENTS_DIR"/flow-*.md; do
 done
 
 # Create directories
-mkdir -p "$SKILL_DIR"
+mkdir -p "$SKILLS_DIR"
 mkdir -p "$AGENTS_DIR"
 
-# Install skill
-cp "$SCRIPT_DIR/skills/flow/SKILL.md" "$SKILL_DIR/SKILL.md"
-echo "  ✓ installed $SKILL_DIR/SKILL.md"
+# Install skills (every directory under skills/ that has a SKILL.md)
+for skill_src in "$SCRIPT_DIR/skills"/*/; do
+  name="$(basename "$skill_src")"
+  if [ -f "$skill_src/SKILL.md" ]; then
+    mkdir -p "$SKILLS_DIR/$name"
+    cp "$skill_src/SKILL.md" "$SKILLS_DIR/$name/SKILL.md"
+    echo "  ✓ installed $SKILLS_DIR/$name/SKILL.md"
+  fi
+done
 
 # Install agents
 for agent in "$SCRIPT_DIR/agents/"flow-*.md; do
@@ -44,7 +54,7 @@ done
 
 echo ""
 echo "Done. Verify with:"
-echo "  ls $SKILL_DIR/"
+echo "  ls $SKILLS_DIR/"
 echo "  ls $AGENTS_DIR/flow-*.md"
 echo ""
-echo "Then in any Claude Code session: /flow <task>"
+echo "Then in any Claude Code session: /flow <task> or /flow-lite <task>"
