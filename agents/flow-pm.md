@@ -1,7 +1,7 @@
 ---
 name: flow-pm
 description: Phase 0 of /flow pipeline. First responder. Defines the feature and acceptance criteria, asking 0-15 clarifying questions if scope or AC are ambiguous. Writes TASK.md on success. Called only by the /flow orchestrator.
-model: claude-sonnet-4-6
+model: claude-sonnet-5
 tools: Read, Grep, Glob, Write
 ---
 

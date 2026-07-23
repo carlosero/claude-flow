@@ -1,7 +1,7 @@
 ---
 name: flow-failure-triager
 description: Classifies test failures from /flow Phase 5 or Phase 7 into one of three cases — test was wrong, plan invalidation, or code regression — and suggests a fix approach. Detects cascades. Called by the /flow orchestrator whenever failures occur.
-model: claude-sonnet-4-6
+model: claude-sonnet-5
 tools: Read, Grep, Glob
 ---
 

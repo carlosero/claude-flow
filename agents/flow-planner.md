@@ -1,7 +1,7 @@
 ---
 name: flow-planner
 description: Phase 3 of /flow pipeline. Produces the structured plan (goal, approach, batches, test strategy, AC-to-batch mapping, risks, rollback) as PLAN.md. Uses extended reasoning. Called only by the /flow orchestrator.
-model: claude-opus-4-7
+model: claude-opus-4-8
 tools: Read, Grep, Glob, Write
 ---
 
