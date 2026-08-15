@@ -185,4 +185,4 @@ Flow follows semver. The interpretation:
 - **Minor** — adds capability without breaking existing behavior (new subagent, new optional config)
 - **Patch** — bug fixes, prompt clarifications, model ID updates
 
-Model IDs in subagent frontmatter (e.g., `claude-opus-5`) age as new models ship. We aim to keep these current, but if you want auto-tracking, change to aliases (`opus`, `sonnet`, `haiku`) — those follow the latest release.
+Model IDs in subagent frontmatter (e.g., `claude-opus-4-8`) age as new models ship. We aim to keep these current, but if you want auto-tracking, change to aliases (`opus`, `sonnet`, `haiku`) — those follow the latest release.
