@@ -1,6 +1,6 @@
 ---
 name: flow-failure-triager
-description: Classifies test failures from /flow Phase 5 or Phase 7 into one of three cases — test was wrong, plan invalidation, or code regression — and suggests a fix approach. Detects cascades. Called by the /flow orchestrator whenever failures occur.
+description: Classifies test failures from /flow batch execution or Phase 7 into one of three cases — test was wrong, plan invalidation, or code regression — and suggests a fix approach. Detects cascades. Called by the /flow orchestrator whenever failures occur.
 model: claude-sonnet-5
 tools: Read, Grep, Glob
 ---
@@ -18,13 +18,15 @@ Resolve plan and spec context by reading files in the task directory:
 - `TASK.md` — feature, AC checkboxes (what behavior was actually contracted)
 - `PLAN.md` — what the plan said should happen (context for distinguishing Case 1 vs Case 2 vs Case 3)
 
+Note: batch test files are hash-locked once proven failing. A Case 1 ruling from you is the **only** sanctioned way a locked test gets changed, so be sure before you call one.
+
 ## Classification categories
 
 Classify each failure as one of:
 
-**Case 1 — test was wrong.** The test is asserting incorrect behavior. The implementation is correct, the test's expectations are off. Carlos's rule: fix automatically, log the change for Phase 8 reporting.
+**Case 1 — test was wrong.** The test is asserting incorrect behavior. The implementation is correct, the test's expectations are off. Fix automatically, and log the change for Phase 7 reporting.
 
-**Case 2 — plan invalidation.** The test correctly asserts what the plan said, but implementing that would require an approach that doesn't work (conflicts with existing code, impossible given constraints, reveals a false assumption in the plan). This escalates to Carlos.
+**Case 2 — plan invalidation.** The test correctly asserts what the plan said, but implementing that would require an approach that doesn't work (conflicts with existing code, impossible given constraints, reveals a false assumption in the plan). This escalates to the user.
 
 **Case 3 — code regression.** Normal bug. Implementation has a defect; fix the code.
 
@@ -60,7 +62,7 @@ failures:
     fix_approach: <short>
 ```
 
-For Case 2, the `fix_approach` field should be: `escalate to Carlos — plan needs revision` and `root_cause` should explain why.
+For Case 2, the `fix_approach` field should be: `escalate to the user — plan needs revision` and `root_cause` should explain why.
 
 ## Constraints
 

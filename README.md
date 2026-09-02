@@ -10,17 +10,22 @@ Two entrypoints: **`/flow`** for non-trivial features that deserve the full pipe
 
 Most AI development workflows put one big model in one big context window, asking it to plan, write tests, implement, run, debug, and report — all at the same intelligence tier. That works, but it's expensive, and bad decisions in early phases propagate through every later phase. Flow takes the opposite approach: split the work into bounded subagent calls, route each to the cheapest model that does the job well, and let an orchestrator hold the state machine and the safety rails.
 
-The result: Opus only fires when judgment matters (planning, implementing). Sonnet handles writing tests and classifying failures. Haiku handles classification, command execution, and templating. Each subagent dies after returning, so its context never bloats the next one.
+The result: Opus only fires when judgment matters (architecture, planning, building a batch). Sonnet handles the codebase map, security review, and failure classification. Haiku handles command execution and templating. Each subagent dies after returning, so its context never bloats the next one.
+
+Splitting has a cost, though, and Flow is explicit about it: a fresh context is only cheap when the agent doesn't have to *rebuild* it. Agents that need the same understanding of your codebase to do their jobs are merged rather than split, and the understanding they do need is written down once — in MAP.md — instead of re-derived on every dispatch.
 
 ## What you get
 
 - **`/flow {task}`** — full orchestrated pipeline for non-trivial features
 - **`/flow-lite {task}`** — clarify-then-do for small or non-code tasks; no subagents, no TDD, no gates
-- **Phased workflow** — PM → triage → architect → plan → write failing tests → implement → security review → run suite → report
-- **Per-task artifact directory** — every run gets `~/.flow/tasks/{project}/{unix_ts}/` with TASK.md, ARCHITECT.md, PLAN.md, SECURITY.md, REPORT.md, STATE.md. Subagents read from disk instead of in-band context; you can hand-edit any artifact between phases.
+- **Phased workflow** — PM → triage → architect → plan → build batches (failing tests then code, one agent) → security review → run suite → report
+- **Per-task artifact directory** — every run gets `~/.flow/tasks/{project}/{unix_ts}/` with TASK.md, MAP.md, ARCHITECT.md, PLAN.md, SECURITY.md, REPORT.md, STATE.md. Subagents read from disk instead of in-band context; you can hand-edit any artifact between phases.
+- **MAP.md, the shared codebase map** — triage writes your project's commands, test conventions, fixture and double patterns, key paths, and gotchas once; every later agent reads it instead of re-exploring
+- **Hash-locked tests** — a batch's tests are frozen the moment they're proven failing, and independently re-verified after the code is written. The agent that makes the tests pass cannot quietly weaken them; a mismatch stops the run.
+- **Parallel batches** — the planner declares batch dependencies and the orchestrator builds independent batches concurrently (up to 3), falling back to serial on any file overlap
 - **Plan approval gate** — workflow hard-stops for your review and ends the turn; three response paths handle proceed / revise / revise-and-proceed. Not overridable by auto-accept mode, `/loop`, or project `CLAUDE.md`
 - **Architect conflict channel** — architect can return `status: conflict` when an AC in TASK.md cannot be satisfied by any sensible architecture; orchestrator surfaces to you, rewrites TASK.md per your direction, re-dispatches
-- **Anti-loop guards** — per-test attempt caps, implementer re-dispatch caps, total cycle circuit breaker, security-review cycle cap, architect/TASK conflict cycle cap, cascade detection
+- **Anti-loop guards** — per-test attempt caps, builder re-dispatch caps, total cycle circuit breaker, security-review cycle cap, architect/TASK conflict cycle cap, test-lock violations, cascade detection
 - **Hard guards** — no destructive operations, no auto-commits, no secrets ever leaked
 - **Honest TDD** — failing tests must be proven failing for the right reason (missing behavior, not a syntax error) before implementation begins
 - **Coverage discipline** — 90% line coverage on files touched by the change
@@ -35,28 +40,28 @@ The result: Opus only fires when judgment matters (planning, implementing). Sonn
   ↓
 [Phase 0] PM (Sonnet)                writes TASK.md (feature, AC checkboxes, out-of-scope); 0–15 questions if needed
   ↓
-[Phase 1] Triager (Haiku)            classify size, detect stack, extract CLAUDE.md slices → STATE.md
+[Phase 1] Triager (Sonnet)           classify size, detect stack + commands, write MAP.md
   ↓
 [Phase 2] Architect (Opus)           writes ARCHITECT.md; 0–15 questions if needed; may raise TASK.md conflict
   ↓
-[Phase 3] Planner (Opus, ultrathink) writes PLAN.md (batches + AC-to-batch mapping)
+[Phase 3] Planner (Opus, ultrathink) writes PLAN.md (batches within budget + dependency graph + AC mapping)
   ↓
 [USER GATE]                          you review and approve the plan
   ↓
-[Phase 4] Test Author (Sonnet)       writes failing tests, proves they fail for right reason
-  ↓
-[Phase 5] Implementer (Opus)         writes minimum code to pass tests
-          Test Runner (Haiku)        per-batch typecheck + tests
+[Phase 4] Batch Builder (Opus)       per batch, in one context: failing tests → prove red → hash-lock
+                                     → minimum code → green.  Independent batches run in parallel (max 3)
+          Test Runner (Haiku)        per-batch typecheck + tests + test-lock verification
           Orchestrator               ticks AC checkboxes in TASK.md per batch
   ↓
-[Phase 6] Security Reviewer (Sonnet) writes SECURITY.md (diff-scoped vulnerability review)
+[Phase 5] Security Reviewer (Sonnet) writes SECURITY.md (diff-scoped vulnerability review)
           Implementer (Opus)         fixes findings; reviewer re-runs (overwriting SECURITY.md) until clean
-                                     (no test run in the loop — Phase 7 is the gate)
+                                     (no test run in the loop — Phase 6 is the gate)
   ↓
-[Phase 7] Test Runner (Haiku)        full suite + typecheck + coverage
+[Phase 6] Test Runner (Haiku)        full suite + typecheck + coverage + lock re-verification
           Failure Triager (Sonnet)   classifies failures: test-wrong / plan-wrong / code-wrong
+          Test Author (Sonnet)       closes coverage gaps on touched files, if any
   ↓
-[Phase 8] Reporter (Haiku)           reads task dir, writes REPORT.md
+[Phase 7] Reporter (Haiku)           reads task dir, writes REPORT.md
 ```
 
 For phase-by-phase detail, see [docs/workflow.md](docs/workflow.md).
@@ -144,7 +149,7 @@ For a meatier example:
 /flow add real-time chat to the dashboard with message persistence and typing indicators
 ```
 
-This will likely classify as `L` (large). The PM will probably ask scope questions (DMs vs group chat, retention, ordering guarantees) and pin down acceptance criteria. The architect will then frame the high-level shape (subsystems, persistence, transport) and may raise a conflict if any AC can't be satisfied by a sensible architecture (you resolve, TASK.md gets rewritten, architect re-runs). Planner produces batches. Implementation runs through batches in order.
+This will likely classify as `L` (large). The PM will probably ask scope questions (DMs vs group chat, retention, ordering guarantees) and pin down acceptance criteria. The architect will then frame the high-level shape (subsystems, persistence, transport) and may raise a conflict if any AC can't be satisfied by a sensible architecture (you resolve, TASK.md gets rewritten, architect re-runs). Planner produces batches within the L budget (4-6) and declares which are independent. Batches then build in dependency order, in parallel where the plan allows.
 
 ### Small tasks
 
@@ -167,11 +172,13 @@ The biggest token-waste risk in AI-assisted TDD is unconscious test/fix looping.
 | Counter | Cap | On trip |
 |---|---|---|
 | Per-test fix attempts | 3 | Stop, escalate |
-| Implementer re-dispatches per batch | 3 | Stop, escalate |
-| Full-suite runs in Phase 7 | 3 | Stop, report state |
+| Builder re-dispatches per batch | 3 | Stop, escalate |
+| Full-suite runs in Phase 6 | 3 | Stop, report state |
 | Total test/fix cycles across workflow | 5 | Stop, check in |
-| Security review cycles in Phase 6 | 3 | Stop, present open findings and wait for direction |
+| Security review cycles in Phase 5 | 3 | Stop, present open findings and wait for direction |
 | Architect/TASK conflict cycles | 3 | Stop, ask user how to proceed |
+| Test-lock violations | 0 | Stop immediately, name the files, escalate |
+| Concurrent batch builders | 3 | Remaining batches go in the next group |
 
 A "diagnose before retry" rule requires the orchestrator to articulate a one-sentence root cause before any retry dispatch. If it can't articulate, it asks you instead.
 
@@ -203,14 +210,15 @@ Flow respects your project's `CLAUDE.md`. Conventions, test rules, and no-gos de
 Subagent model assignments are set in each agent's frontmatter. To change them, edit the agent files directly:
 
 - `agents/flow-pm.md` — Sonnet
-- `agents/flow-triager.md` — Haiku
+- `agents/flow-triager.md` — Sonnet (also writes MAP.md)
 - `agents/flow-architect.md` — Opus (every task)
 - `agents/flow-planner.md` — Opus
-- `agents/flow-test-author.md` — Sonnet
-- `agents/flow-implementer.md` — Opus
+- `agents/flow-batch-builder.md` — Opus (main path: tests + implementation per batch)
 - `agents/flow-test-runner.md` — Haiku
 - `agents/flow-failure-triager.md` — Sonnet
 - `agents/flow-security-reviewer.md` — Sonnet
+- `agents/flow-implementer.md` — Opus (off-path: security fixes, regressions)
+- `agents/flow-test-author.md` — Sonnet (off-path: coverage gaps)
 - `agents/flow-reporter.md` — Haiku
 
 Any model alias (`opus`, `sonnet`, `haiku`) or full model ID is accepted.

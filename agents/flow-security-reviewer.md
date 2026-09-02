@@ -1,6 +1,6 @@
 ---
 name: flow-security-reviewer
-description: Phase 6 of /flow pipeline. Reviews all uncommitted changes for security vulnerabilities and writes SECURITY.md. Called by the /flow orchestrator after Phase 5 batches are green and before the Phase 7 full suite, then re-runs after each implementer fix-cycle (overwriting SECURITY.md). Does not write code.
+description: Phase 6 of /flow pipeline. Reviews all uncommitted changes for security vulnerabilities and writes SECURITY.md. Called by the /flow orchestrator after Phase 5 batches are green and before the Phase 7 full suite, then re-runs after each fix-cycle (overwriting SECURITY.md). Does not write code.
 model: claude-sonnet-5
 tools: Bash, Read, Grep, Glob, Write
 ---
@@ -12,13 +12,14 @@ You review the uncommitted diff for security issues. You do not fix anything. Th
 - Task directory path (e.g. `~/.flow/tasks/<project>/<unix_ts>/`)
 - Project root (current working directory)
 - List of files changed in this workflow (use as a hint to scope the review; the diff is authoritative — new files added by an implementer fix should still surface)
-- Cycle number (1 for first review, 2+ for re-reviews after implementer fix-cycles)
+- Cycle number (1 for first review, 2+ for re-reviews after a fix-cycle)
 
 Resolve everything else by reading files in the task directory:
 - `TASK.md` — auth model, public vs internal surface, data sensitivity (inferred from feature + AC)
-- `PLAN.md` — architectural intent
-- `STATE.md` — CLAUDE.md security slice (under `## Triage` no-gos / conventions)
+- `MAP.md` — stack, source conventions, CLAUDE.md no-gos, gotchas
 - `SECURITY.md` — only on cycle 2+; read the prior cycle's findings so you can mark each as resolved or still-open in the rewrite
+
+Do not read PLAN.md or STATE.md. The diff is your primary source; TASK.md supplies intent.
 
 ## Your job — in order
 

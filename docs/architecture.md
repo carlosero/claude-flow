@@ -6,7 +6,7 @@ This doc explains *why* Flow looks the way it does. If you're trying to understa
 
 Flow optimizes for three things, in order:
 
-1. **Token efficiency** — no model bigger than the task warrants, no context window bigger than the subagent needs
+1. **Token efficiency** — no model bigger than the task warrants, no context window bigger than the subagent needs, and no agent re-deriving what another agent already learned
 2. **No infinite loops** — bounded retries with explicit escalation, no silent burning of cycles
 3. **Honest TDD** — failing tests proven failing for the right reason, before any production code is written
 
@@ -27,24 +27,27 @@ Subagents do bounded technical work. Each runs in its own fresh context window, 
 Why split this way? Two reasons:
 
 1. **Context isolation.** A failure-triager looking at test #7 doesn't need to know that tests #1–6 also exist, what the planner thought last week, or what the user originally asked. Giving it less context produces sharper output and saves tokens.
+
+   The counterweight, learned the expensive way: a fresh context is only cheap when the agent doesn't have to *rebuild* it. An agent that reads twenty files to orient itself before doing five minutes of work pays for that isolation many times over. So the rule is not "split everything" — it's **split on judgment boundaries, merge on exploration boundaries.** Two agents that need the same map of the codebase to do their jobs should be one agent. See "Why the batch builder is one agent" below.
 2. **Model tiering.** The orchestrator's role (state tracking, dispatching) is cheap. Test running is cheap. Plan writing is expensive. Letting each subagent declare its own model means you only pay Opus prices when you need Opus reasoning.
 
 Skills "chaining" was considered and rejected. Skills are contextual instruction sets, not runtime processes. Chaining them would mean reading more instructions in the same context — which is exactly the problem we're trying to avoid.
 
 ## The task directory: file-based artifacts
 
-Every `/flow` run creates a per-task directory at `~/.flow/tasks/{project_folder}/{unix_ts}/`. Six artifacts live there, each owned by a single agent:
+Every `/flow` run creates a per-task directory at `~/.flow/tasks/{project_folder}/{unix_ts}/`. Seven artifacts live there, each owned by a single agent:
 
 | File | Owner | Content |
 |---|---|---|
 | TASK.md | PM | Feature paragraph, AC checkboxes, out-of-scope, open assumptions |
+| MAP.md | Triager | Commands, test + source conventions, fixtures and doubles, key paths, CLAUDE.md rules, gotchas |
 | ARCHITECT.md | Architect | Shape, subsystems, data flow, integration points, trade-offs |
 | PLAN.md | Planner | Goal, approach, batches, AC-to-batch mapping, risks, rollback |
 | SECURITY.md | Security reviewer | Findings (overwritten each cycle, with prior-cycle resolution notes) |
-| REPORT.md | Reporter | Phase 8 handoff summary |
+| REPORT.md | Reporter | Phase 7 handoff summary |
 | STATE.md | Orchestrator | Task metadata, triage, counters, batch progress, modified-test log, escalations |
 
-The orchestrator has two narrow exceptions to owner-only writes: it maintains STATE.md throughout, and it ticks AC checkboxes in TASK.md as each Phase 5 batch turns green (the AC-to-batch mapping in PLAN.md tells it which boxes to tick). The architect cannot edit TASK.md — when it detects an AC conflict, it returns `status: conflict` and the orchestrator rewrites TASK.md per user direction, then re-dispatches.
+The orchestrator has two narrow exceptions to owner-only writes: it maintains STATE.md throughout, and it ticks AC checkboxes in TASK.md as each Phase 4 batch turns green (the AC-to-batch mapping in PLAN.md tells it which boxes to tick). The architect cannot edit TASK.md — when it detects an AC conflict, it returns `status: conflict` and the orchestrator rewrites TASK.md per user direction, then re-dispatches.
 
 Why files instead of in-band context passing?
 
@@ -61,11 +64,12 @@ Trade-offs: machine-global state means tasks accumulate at `~/.flow/tasks/` unti
 |---|---|---|
 | Orchestrator (the skill) | inherits session model | Lightweight state machine, no heavy lifting |
 | `flow-pm` | Sonnet | First responder. Defining a feature + acceptance criteria is judgment work but bounded — Sonnet is sufficient and the architect handles the heavy reasoning for L. |
-| `flow-triager` | Haiku | Pattern-match against rubric, classify, parse files. Cheap. |
+| `flow-triager` | Sonnet | Classification is cheap, but the triager also writes MAP.md — the codebase map every later agent trusts instead of re-exploring. A shallow map means every downstream agent re-derives conventions anyway, which is precisely the cost MAP.md exists to remove. This is the one place where paying more once saves much more later, so it is not a Haiku call. |
 | `flow-architect` | Opus | Runs on every task. Architectural shape decisions are load-bearing for the planner; deep judgment about subsystems and integration warrants Opus. Calibrates depth to triage size — quick sweep on S, deeper read on L. Also owns the AC-conflict channel (see below). |
 | `flow-planner` | Opus + ultrathink keyword | Highest-leverage call in the pipeline. A bad plan poisons every later phase. |
-| `flow-test-author` | Sonnet | Competent test writing. Doesn't need Opus. Self-runs to prove failure. |
-| `flow-implementer` | Opus | Hardest reasoning task. Worth the cost. |
+| `flow-batch-builder` | Opus | The main path: writes a batch's tests, proves them red, locks them, then writes the code to green. Inherits the implementer's reasoning load, so it inherits the implementer's tier. |
+| `flow-implementer` | Opus | Off-path only now — security findings and Case 3 regressions. Hardest reasoning on the paths where no tests are being authored. |
+| `flow-test-author` | Sonnet | Off-path only now — Phase 6 coverage gaps against code that already exists. Competent test writing, doesn't need Opus. |
 | `flow-test-runner` | Haiku | Pure command execution and result parsing. No reasoning needed. |
 | `flow-failure-triager` | Sonnet | Classifying a failure into one of three buckets is judgment work, but bounded. |
 | `flow-security-reviewer` | Sonnet | Diff-scoped vulnerability review. Pattern recognition over a small surface, with judgment calls about severity and scope. Sonnet is sufficient; Opus would be overkill for a bounded checklist task. |
@@ -73,17 +77,51 @@ Trade-offs: machine-global state means tasks accumulate at `~/.flow/tasks/` unti
 
 The PM-then-architect split is intentional. The PM grounds the work in user-facing terms (what's being built, when it's done) — no code, no architecture, just observable AC. The architect then translates AC into shape: subsystems, data flow, integration points. The split protects testability (AC stay observable instead of leaking into code shape) and creates a conflict channel: when the architect cannot satisfy an AC with any sensible architecture, it returns `status: conflict` and the orchestrator surfaces the AC to the user, who decides how TASK.md should change. The architect runs on every task — by the time you've reached for `/flow`, you've decided the work isn't trivial enough to skip a written shape.
 
-## Why merge test-author and test-runner for the cold path, but split for the hot path
+## Why the batch builder is one agent
 
-**Cold path (Phase 4 — initial test writing):** the test-author writes tests AND runs them itself, proves they fail for the right reason, then returns. One subagent, Sonnet.
+Flow originally ran each batch as two dispatches: a Sonnet test-author (Phase 4) wrote the failing tests and proved them red, then an Opus implementer (Phase 5) wrote the code in a completely fresh context.
 
-**Hot path (Phase 5/7 — implementation and full suite):** test-runner is its own dedicated Haiku subagent that the orchestrator dispatches separately from the implementer.
+Measured across real runs, those two agents were **82% of all subagent wall-clock**, and most of that was not spent writing anything. Roughly 70% of a test-author dispatch and 50% of an implementer dispatch elapsed before the agent's first line of output — spent reading the same files, deriving the same conventions, and re-answering the same questions about the codebase. On one 10-batch run, 46% of the files the implementer read had already been read by the test-author twenty minutes earlier, in a context that was then discarded. In one batch the test-author went as far as writing three production files to sanity-check its mocks, deleting them, and letting a fresh Opus agent re-derive the same three files from scratch.
 
-Why the asymmetry?
+The split existed to protect one invariant: **the agent that makes the tests pass must not be able to weaken them.** That invariant is worth keeping. Buying it with a fresh context is not — it is the most expensive available way to enforce a rule that a hash comparison enforces for free.
 
-The cold path runs once per batch — writing tests is the work, running them is the validation. Splitting that into two subagents would add round-trips through the orchestrator for something the test-author should handle itself. Merge wins.
+So the builder is one agent, and the invariant moved to a lock:
 
-The hot path runs many times per cycle — implementer dispatches, test-runner dispatches, possibly retry, possibly cascade detection. The implementer is Opus. You do not want Opus thinking tokens spent on "did the tests pass?" That's pure command execution. Haiku nails it for a fraction of the cost. Split wins.
+1. The builder writes the tests and proves they fail for the right reason (missing behavior, not a setup error).
+2. It hashes every test file it wrote and reports the digests. **That is the freeze.**
+3. It writes production code. It may not touch a test file from this point.
+4. The Haiku test-runner re-hashes those files afterwards and reports `verified` or `violated`.
+
+A mismatch is a guard trip, not a retry — the orchestrator stops and escalates. The only sanctioned route to changing a locked test is a failure-triager Case 1 ruling, which comes back as an explicit `amend_tests` re-dispatch that re-proves red and re-freezes, and lands in the modified-tests log that ships with the final report.
+
+Same guarantee, enforced by a cheap external check rather than an expensive context boundary — and one exploration pass per batch instead of two.
+
+The test-runner stays split out. It runs many times per batch and is pure command execution and result parsing; you do not want Opus thinking tokens spent on "did the tests pass?" Haiku nails it for a fraction of the cost. It also means the lock is verified by a different agent than the one that wrote it, which is exactly the property you want in a verifier.
+
+## Batch budgets and parallel batches
+
+Two levers govern how often that per-batch cost gets paid.
+
+**Budget.** Each batch carries irreducible overhead: a cold agent context, an orientation pass, its own test run. Left unbounded, planners split fine — observed M-size tasks drawing 5–7 batches and one L drawing 10, several of them single-file. The planner now works to a hard cap by size tier (S: 1–2, M: 2–4, L: 4–6) and returns `status: over_budget` rather than exceeding it, which surfaces "this task is bigger than its triage tier" as a decision for the user instead of silently billing for it.
+
+**Parallelism.** Batches used to run strictly in order even when they were independent leaf modules sharing no files. The planner now emits a `## Batch dependency graph`, and the orchestrator dispatches every ready batch concurrently, up to three at a time.
+
+Concurrency is bounded by evidence, not by declaration. Before dispatching a group, the orchestrator compares the batches' file lists; **any overlap forces serial execution regardless of what the graph claims.** A wrong dependency declaration therefore costs parallelism, never correctness. Three is a deliberate ceiling — beyond it, concurrent test runners and package-manager invocations contend for the same repo.
+
+This supersedes the "parallel implementer dispatches" entry that used to sit under "What was deliberately left out." The concern there was real — coordinating shared types across parallel agents is genuinely hard — and it is answered structurally rather than by coordination: shared types, schema, ports, and config belong in a foundation batch that the parallel fan-out depends on. The normal plan shape is now foundation → parallel leaves → integration.
+
+## Why agents read MAP.md instead of the whole task directory
+
+Every agent used to resolve its inputs by reading TASK.md, ARCHITECT.md, PLAN.md, and STATE.md. On a large run those four reached 82KB — about 20k tokens — and each of the ~23 code-touching dispatches read all of them. STATE.md is the worst offender: it grows monotonically, so the batch-8 builder was reading seven batches of history it had no use for.
+
+That bloat has a second cost beyond the tokens. Builder contexts were peaking near 200k tokens, and at that size the pauses *between* tool calls stretched to three and six minutes. Context size buys latency as well as spend.
+
+Two changes:
+
+- **MAP.md replaces re-derivation.** The triager writes the codebase map once — commands, test conventions, fixture and double patterns, key paths, CLAUDE.md slices, gotchas — and downstream agents are told to trust it. One exploration pass for the whole pipeline instead of one per dispatch. This is also why the triager moved to Sonnet: a map nobody trusts is worse than no map, because agents pay for reading it *and* re-explore anyway.
+- **The orchestrator passes slices, not artifacts.** It already holds PLAN.md and TASK.md, so it assembles a batch brief — that batch's files, test strategy, notes, and the verbatim AC text — and passes it inline. The builder reads only MAP.md and ARCHITECT.md from disk, and never reads PLAN.md, TASK.md, or STATE.md at all.
+
+STATE.md remains what it always was: the orchestrator's own ledger. It is simply no longer anyone else's reading assignment.
 
 ## Anti-loop guards
 
@@ -94,11 +132,13 @@ The guards layer multiple brakes:
 | Layer | Cap | Purpose |
 |---|---|---|
 | Per-test fix attempts | 3 | Hard stop on individual flailing |
-| Implementer re-dispatches per batch | 3 | Hard stop on whole-batch flailing |
-| Full-suite runs in Phase 7 | 3 | Hard stop on suite-level flailing |
+| Builder re-dispatches per batch | 3 | Hard stop on whole-batch flailing |
+| Full-suite runs in Phase 6 | 3 | Hard stop on suite-level flailing |
 | Total test/fix cycles | 5 | Catch slow-burn waste |
-| Security review cycles in Phase 6 | 3 | Bound the review/fix loop; surface persistent findings instead of looping silently |
+| Security review cycles in Phase 5 | 3 | Bound the review/fix loop; surface persistent findings instead of looping silently |
 | Architect/TASK conflict cycles | 3 | Bound the architect↔TASK.md rewrite loop; surface to user if AC cannot be stabilized |
+| Test-lock violations | 0 | A locked test changed outside the sanctioned path — stop, never retry past one |
+| Concurrent batch builders | 3 | Bound repo contention from parallel dispatch |
 | Cascade detection | 3+ failures with same root | Fix root only, not each downstream symptom |
 | Diagnose-before-retry | always | Force articulation of root cause before any retry |
 | No silent test mutations | always | Every test edit logged with reason |
@@ -140,17 +180,17 @@ Tests prove the code does what was specified. They generally do not prove the co
 Three design choices worth calling out:
 
 1. **Scope is the diff, not the codebase.** The reviewer looks at uncommitted changes only. Cataloguing pre-existing issues outside the changed lines would scope-creep every `/flow` run into a full audit. Out of scope.
-2. **Security review runs before the full suite.** Per-batch tests at the end of Phase 5 already prove the new behavior works. The full suite is the most expensive test invocation in the pipeline. If the reviewer finds something that requires code changes, the full suite would have to re-run anyway — so it's cheaper to review first and run the suite once, at the end, as the final gate. Earlier versions of Flow ran the suite first; that ordering wasted a full pass every time security had findings.
-3. **No test run inside the security loop.** After the implementer fixes findings, the orchestrator goes straight back to the reviewer — no test invocation between them. The Phase 7 full suite is the gate; if a security fix breaks a test, the failure-triager picks it up there. The cycle cap (3) bounds this loop the same way the test-fix caps bound Phase 5/7. Trade-off: a regression caused by a security patch is discovered one phase later than it would be if we kept testing in the loop. In exchange, the happy path runs the full suite once instead of up to four times.
+2. **Security review runs before the full suite.** Per-batch tests at the end of Phase 4 already prove the new behavior works. The full suite is the most expensive test invocation in the pipeline. If the reviewer finds something that requires code changes, the full suite would have to re-run anyway — so it's cheaper to review first and run the suite once, at the end, as the final gate. Earlier versions of Flow ran the suite first; that ordering wasted a full pass every time security had findings.
+3. **No test run inside the security loop.** After the implementer fixes findings, the orchestrator goes straight back to the reviewer — no test invocation between them. The Phase 6 full suite is the gate; if a security fix breaks a test, the failure-triager picks it up there. The cycle cap (3) bounds this loop the same way the test-fix caps bound Phases 4 and 6. Trade-off: a regression caused by a security patch is discovered one phase later than it would be if we kept testing in the loop. In exchange, the happy path runs the full suite once instead of up to four times.
 
-Sonnet is the right tier for this work. Severity calls and "is this issue introduced by the diff" judgments are bounded pattern-recognition; the heavy lifting (writing the actual fix) lives in the Opus implementer call that the reviewer's findings dispatch into.
+Sonnet is the right tier for this work. Severity calls and "is this issue introduced by the diff" judgments are bounded pattern-recognition; the heavy lifting (writing the actual fix) lives in the Opus implementer call that the reviewer's findings dispatch into — one of the two off-path jobs the implementer still owns.
 
 ## CLAUDE.md handling
 
 `CLAUDE.md` files are project memory in Claude Code. They auto-load into the orchestrator's session at startup. Flow uses them in two ways:
 
-- **Triager extracts slices** — at Phase 1, the triager pulls relevant pieces (conventions, test rules, no-gos) from `CLAUDE.md` files
-- **Orchestrator passes slices to subagents** — only the relevant slice ships with each dispatch, not the whole file
+- **Triager extracts slices** — at Phase 1, the triager pulls relevant pieces (conventions, test rules, no-gos) from `CLAUDE.md` files into MAP.md
+- **Subagents read MAP.md** — the relevant slice reaches each agent through the map, not through a copy of the whole file in every dispatch
 
 `CLAUDE.md` *can* override:
 - Test framework, runner, fixtures
@@ -172,9 +212,9 @@ Things considered and rejected for v0.1:
 
 - **Auto-routing to project-defined agents** (frontend-agent, api-agent, etc.). Discovery is messy, contracts mismatch with TDD pipeline expectations, and project agents may have their own loop behavior that bypasses Flow's guards. Opt-in only via user instruction.
 - **Token cost tracking and stop-on-cost triggers**. Token counting across subagent calls is awkward. Cycle counts are a usable proxy. Revisit if real-use shows cycle counts aren't catching slow-burn cases.
-- **Parallel implementer dispatches**. Plans with independent batches could theoretically be implemented in parallel, but coordinating shared types and contracts across parallel subagents is hard. Sequential for now.
-- **Extended thinking on the implementer**. The planner already did the reasoning; the implementer's job is to execute the plan, not re-think it.
-- **Project-level subagent overrides**. Users could put their own `flow-test-author.md` in `.claude/agents/` to override the default. Not specified or supported in v0.1.
+- **Extended thinking on the batch builder**. The planner already did the reasoning; the builder's job is to execute the plan, not re-think it.
+- **Project-level subagent overrides**. Users could put their own `flow-batch-builder.md` in `.claude/agents/` to override the default. Not specified or supported.
+- **Cross-batch context reuse.** Parallel batch builders each pay their own orientation pass; MAP.md shortens it but does not eliminate it. A shared warm context across batches would cut it further, and would also reintroduce exactly the coupling the fresh-context model exists to avoid. Not attempted.
 - **Trivial bypass mode**. `/flow` is for non-trivial features. Trivial work doesn't need this skill. If you find yourself wanting bypass, you're using `/flow` for the wrong thing.
 
 ## Versioning philosophy

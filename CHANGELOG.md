@@ -5,6 +5,26 @@ All notable changes to Flow are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-09-02
+
+Flow runs were taking hours on features that warranted far less. Instrumenting real runs showed the cost was not the retry loops — anti-loop guards barely fired — but **duplicated codebase exploration, paid twice per batch, across too many batches**. On a measured 10-batch run, the test-author and implementer were 82% of all subagent wall-clock; roughly 70% of a test-author dispatch and 50% of an implementer dispatch elapsed before either wrote a line, and 46% of the files the implementer read had already been read by the test-author minutes earlier in a context that was then discarded. This release attacks that directly.
+
+### Added
+- **`flow-batch-builder` (Opus) — merged red-green batch agent.** One agent per batch now writes the failing tests, proves them red, hash-locks them, and writes the code to green, all in one context and one exploration pass. Phases 4 and 5 collapse into a single Phase 4.
+- **Hash-locked tests.** The builder hashes every test file at the moment it is proven failing and reports the digests; the Haiku test-runner independently re-verifies them after the code is written, and again at the full suite. A mismatch is a guard trip (cap 0) — the run stops and names the files. This preserves the invariant the old two-agent split existed to protect (the agent that makes tests pass cannot weaken them) using a cheap external check instead of an expensive context boundary. The only sanctioned route to changing a locked test is a failure-triager Case 1 ruling, which returns as an explicit `amend_tests` re-dispatch that re-proves red, re-freezes, and is logged in `## Modified tests`.
+- **`MAP.md` — a shared codebase map, written once at triage.** Commands (including single-file test invocation), test and source conventions, fixture and double patterns, key paths for the task, CLAUDE.md slices, and gotchas. Downstream agents are instructed to trust it rather than re-derive conventions. New triager-owned artifact; the task directory now holds seven files.
+- **Parallel batch execution.** The planner emits a `## Batch dependency graph`; the orchestrator dispatches every ready batch concurrently, up to 3 at a time. Any file overlap between two batches forces serial execution regardless of the declared graph, so a wrong declaration costs parallelism, never correctness. Supersedes the "parallel implementer dispatches" entry under *What was deliberately left out*.
+- **Batch budget, enforced by size tier.** S: 1-2 batches, M: 2-4, L: 4-6. The planner returns `status: over_budget` rather than over-splitting, which surfaces "this task is bigger than its triage tier" as a user decision instead of a silent cost. Observed pre-0.6 plans ran 5-7 batches on M and 10 on one L.
+- Anti-loop guards: **test-lock violations (cap 0)** and **concurrent batch builders (cap 3)**.
+
+### Changed
+- **Phases renumbered.** Security review 6 → 5, full suite 7 → 6, handoff 8 → 7. Test-writing and implementation are now one phase (4).
+- **`flow-triager` promoted to Sonnet** (`claude-sonnet-5`, was `claude-haiku-4-5-20251001`). It now writes MAP.md, and a map nobody trusts is worse than no map — agents pay to read it *and* re-explore. This is the one place where paying more once saves considerably more later; rationale updated in the model tier table.
+- **Agents read narrow slices instead of the whole task directory.** The batch builder reads only MAP.md and ARCHITECT.md from disk; the orchestrator assembles a batch brief (that batch's files, test strategy, notes, and the verbatim AC text) and passes it inline. No subagent reads STATE.md any more — it is the orchestrator's ledger, not a reading assignment. The architect, planner, and security reviewer read MAP.md in place of STATE.md. On the measured run those four artifacts totalled 82KB (~20k tokens) re-read by each of ~23 dispatches, with builder contexts peaking near 200k tokens and 3-6 minute pauses between tool calls.
+- **`flow-implementer` is now off-path only** — security findings (`mode: security`) and failure-triager Case 3 regressions (`mode: regression`). It no longer builds batches.
+- **`flow-test-author` is now off-path only** — Phase 6 coverage gaps against code that already exists. It may report a gap as `not_covered` with a structural reason (composition roots, thin SDK wrappers, integration-gated code) rather than writing tests that assert nothing.
+- Counter `implementer_redispatches_per_batch` renamed to `builder_redispatches_per_batch`; `test_lock_violations` added to the STATE.md template.
+
 ## [Unreleased]
 
 ### Added

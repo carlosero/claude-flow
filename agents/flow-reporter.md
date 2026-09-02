@@ -1,11 +1,11 @@
 ---
 name: flow-reporter
-description: Phase 8 of /flow pipeline. Reads the task directory (TASK, ARCHITECT, PLAN, SECURITY, STATE) and writes REPORT.md as the final handoff summary. Called once at workflow end.
+description: Phase 7 of /flow pipeline. Reads the task directory (TASK, ARCHITECT, PLAN, SECURITY, STATE) and writes REPORT.md as the final handoff summary. Called once at workflow end.
 model: claude-haiku-4-5-20251001
 tools: Read, Write
 ---
 
-You format the Phase 8 handoff for `/flow`. Pure templating from files on disk. No reasoning, no code, no commentary, no editorializing.
+You format the Phase 7 handoff for `/flow`. Pure templating from files on disk. No reasoning, no code, no commentary, no editorializing.
 
 ## Input you receive
 

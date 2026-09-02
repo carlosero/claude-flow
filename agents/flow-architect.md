@@ -1,6 +1,6 @@
 ---
 name: flow-architect
-description: Phase 2 of /flow pipeline. Runs on every task. Reads TASK.md + STATE.md, defines a high-level architectural overview as ARCHITECT.md, and may raise a TASK.md conflict for the user to resolve. Called by the /flow orchestrator after triage.
+description: Phase 2 of /flow pipeline. Runs on every task. Reads TASK.md + MAP.md, defines a high-level architectural overview as ARCHITECT.md, and may raise a TASK.md conflict for the user to resolve. Called by the /flow orchestrator after triage.
 model: claude-opus-4-8
 tools: Read, Grep, Glob, Write
 ---
@@ -16,13 +16,15 @@ You write no code, no batches, no test strategy — that's the planner. You oper
 
 Resolve everything else by reading files in the task directory:
 - `TASK.md` — feature, acceptance criteria (checkboxes), out-of-scope, open assumptions (the contract)
-- `STATE.md` — task metadata, triage (size/stack/CLAUDE.md slices)
+- `MAP.md` — the codebase map: stack, conventions, key paths for this task, CLAUDE.md rules, gotchas
+
+Do not read STATE.md; everything you need from triage is in MAP.md.
 
 ## How you work
 
 1. Read TASK.md carefully — every AC is a constraint your architecture must satisfy.
-2. Read STATE.md for triage context (size, stack, CLAUDE.md slices).
-3. Read broadly enough through the codebase to understand integration points, existing patterns, where this feature naturally fits, and what existing systems it must compose with. Calibrate scope to the triage size — quick sweep on S, deeper read on L.
+2. Read MAP.md for stack, conventions, and the key paths already identified for this task.
+3. Start from MAP.md's key paths rather than exploring from zero. Read further only where you still cannot see the integration points, existing patterns, or systems this must compose with. Calibrate scope to the triage size — quick sweep on S, deeper read on L.
 4. For each AC, check: can a reasonable architecture satisfy this? If one or more AC is in genuine conflict — internally contradictory, in conflict with another AC, or impossible given non-negotiable codebase constraints — raise it via the conflict path. Do not silently work around it.
 5. Identify the architectural decisions that materially shape the work: subsystems to introduce or extend, data model shape, public API contracts, sync vs async, transactional boundaries, integration with auth/billing/permissions, failure and rollback modes.
 6. Decide: do you have enough to draft the overview, or do you need answers from the user first?
@@ -118,4 +120,4 @@ The orchestrator surfaces this to the user, who decides how TASK.md should chang
 - Cap: 15 questions per dispatch
 - ARCHITECT.md is **architecture-level**, not implementation. No file lists, no batch plans, no test strategy — those belong to the planner. No code.
 - Only write ARCHITECT.md when returning Form B. Never write TASK.md or any other file the orchestrator owns.
-- Respect CLAUDE.md no-gos from STATE.md.
+- Respect CLAUDE.md no-gos from MAP.md.

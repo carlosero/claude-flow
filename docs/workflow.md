@@ -43,13 +43,13 @@ Before Phase 0, the orchestrator creates a per-task directory:
   ARCHITECT.md  # Architect-owned: shape, subsystems, data flow, integration points, trade-offs
   PLAN.md       # Planner-owned: goal, approach, batches, AC-to-batch mapping, risks, rollback
   SECURITY.md   # Security-reviewer-owned: findings (overwritten each cycle)
-  REPORT.md     # Reporter-owned: Phase 8 handoff
+  REPORT.md     # Reporter-owned: Phase 7 handoff
   STATE.md      # Orchestrator-owned: task metadata, triage, counters, batch progress, modified-test log, escalations
 ```
 
 Each artifact is written only by its owner. Subagents read what they need from disk instead of receiving it in-band. You can hand-edit any file between phases — re-dispatched agents re-read on entry, so your edits take effect immediately.
 
-The orchestrator has two narrow write exceptions: it maintains STATE.md throughout, and it ticks AC checkboxes in TASK.md as each Phase 5 batch turns green.
+The orchestrator has two narrow write exceptions: it maintains STATE.md throughout, and it ticks AC checkboxes in TASK.md as each Phase 4 batch turns green.
 
 ## Phase 0 — PM (feature definition)
 
@@ -74,7 +74,7 @@ TASK.md looks like:
 - <residual assumption made because the question budget was capped>
 ```
 
-The AC are **markdown checkboxes**. Every AC becomes a test target — every criterion must be reachable by at least one batch's tests, and the planner's AC-to-batch mapping makes that contract explicit. As Phase 5 batches turn green, the orchestrator ticks the corresponding boxes.
+The AC are **markdown checkboxes**. Every AC becomes a test target — every criterion must be reachable by at least one batch's tests, and the planner's AC-to-batch mapping makes that contract explicit. As Phase 4 batches turn green, the orchestrator ticks the corresponding boxes.
 
 ```
 Phase 0 — 2 questions
@@ -88,21 +88,23 @@ Phase 0 — TASK.md ready
 
 ## Phase 1 — Triage
 
-The triager (Haiku) reads TASK.md, then inspects the project root. It produces:
+The triager (Sonnet) reads TASK.md, then inspects the project root. It produces:
 
-- **Size tier** — `S`, `M`, or `L`
-- **Stack** — detected framework, test runner, typecheck command
-- **CLAUDE.md slices** — relevant conventions, test rules, no-gos extracted from your project's CLAUDE.md
+- **Size tier** — `S`, `M`, or `L` (this sets the plan's batch budget)
+- **Commands** — test, single-file test, typecheck, coverage, lint, format
+- **MAP.md** — the codebase map: test and source conventions, how this repo builds fixtures and doubles, the key paths for this task, your CLAUDE.md slices, and gotchas
 
-The orchestrator writes these into STATE.md under `## Triage`. You see one short status line. No interaction required.
+MAP.md is the artifact that makes the rest of the run cheap. Every later agent reads it instead of re-deriving your project's conventions from scratch — which is what they used to do, once per dispatch. It's why triage is a Sonnet call rather than a Haiku one: a shallow map gets ignored, and then everyone re-explores anyway.
+
+The orchestrator writes the summary into STATE.md under `## Triage`. You see one short status line. No interaction required.
 
 ```
-Phase 1 — triaged: M / Next.js + TypeScript + Vitest
+Phase 1 — triaged: M / Next.js + TypeScript + Vitest / MAP.md ready
 ```
 
 ## Phase 2 — Architect
 
-The architect (Opus) runs on **every task**. It reads TASK.md and STATE.md (for triage context), then reads broadly enough through the codebase to understand integration points and existing patterns. Depth is calibrated to triage size — a quick sweep on S, a deeper read on L. It produces ARCHITECT.md: shape (2–4 sentences), subsystems and boundaries, data flow, integration points, key trade-offs, open assumptions. No code, no batches, no test strategy — that's the planner's job.
+The architect (Opus) runs on **every task**. It reads TASK.md and MAP.md, then starts from the map's key paths and reads further only where the integration points and existing patterns aren't yet clear. Depth is calibrated to triage size — a quick sweep on S, a deeper read on L. It produces ARCHITECT.md: shape (2–4 sentences), subsystems and boundaries, data flow, integration points, key trade-offs, open assumptions. No code, no batches, no test strategy — that's the planner's job.
 
 The architect can ask up to 15 high-level questions before producing ARCHITECT.md (subsystem placement, sync vs async, transactional boundaries, etc.):
 
@@ -178,33 +180,33 @@ Three response paths:
 
 When in doubt, Flow re-presents. You can always say "proceed" on the next turn.
 
-## Phase 4 — Write failing tests
+## Phase 4 — Build batches
 
-For each batch, the test-author (Sonnet) writes tests, runs them, and confirms they fail **for the right reason** — meaning the behavior doesn't exist yet, not because of syntax errors or missing imports.
+One agent per batch (`flow-batch-builder`, Opus) does the full red-green cycle in a single context:
 
-If a test fails for a setup reason (typo, missing module), the test-author fixes and re-runs until all failures are right-reason failures. If it can't get there in 2 attempts, it escalates.
+1. Reads MAP.md and ARCHITECT.md, plus the batch brief the orchestrator passes inline — that batch's files, test strategy, notes, and the verbatim acceptance criteria it has to satisfy
+2. Writes the tests and runs them, confirming they fail **for the right reason** — the behavior doesn't exist yet, not a syntax error or a missing import
+3. **Hash-locks the test files** and reports the digests
+4. Writes the minimum production code to make them pass
+5. Runs typecheck and the scoped tests again
 
-```
-Phase 4 — batch 1/3 — tests failing for right reason
-```
+Then the test-runner (Haiku) independently re-verifies: typecheck, the batch's tests, and the hashes. If a test file changed between the freeze and the green, that's a lock violation — the run stops and tells you which files, because the passing suite wasn't earned against the tests that were proven failing.
 
-## Phase 5 — Implement
+Writing tests and writing code used to be two separate phases with two separate agents per batch. They were merged because both had to learn the same things about your codebase to do their jobs, and the second one started from nothing — which is where flow runs were actually spending their time. The guarantee that the implementing agent can't weaken the tests is now enforced by the hash lock instead of by the context boundary.
 
-For each batch, in order:
+**Batches run in parallel where the plan allows.** The planner marks each batch's dependencies; the orchestrator dispatches every ready batch at once, up to three at a time, and falls back to serial for any two batches whose file lists overlap.
 
-1. Implementer (Opus) reads TASK.md, ARCHITECT.md, PLAN.md, then writes the minimum production code to make this batch's tests pass
-2. Test-runner (Haiku) runs typecheck + this batch's tests
-3. If green, orchestrator ticks the AC checkboxes in TASK.md that this batch satisfies (per PLAN.md's AC-to-batch mapping); next batch
-4. If typecheck fails, implementer retries with errors
-5. If tests fail, failure-triager classifies; orchestrator routes by classification
+If green, the orchestrator ticks the AC checkboxes that batch satisfies and moves to the next ready batch. If typecheck fails, the builder retries with the errors. If tests fail, the failure-triager classifies and the orchestrator routes from there.
 
 ```
-Phase 5 — batch 1/3 — green
-Phase 5 — batch 2/3 — green
-Phase 5 — batch 3/3 — green
+Phase 4 — batch 1/4 — green (lock verified)
+Phase 4 — batches 2,3/4 dispatched in parallel
+Phase 4 — batch 2/4 — green (lock verified)
+Phase 4 — batch 3/4 — green (lock verified)
+Phase 4 — batch 4/4 — green (lock verified)
 ```
 
-## Phase 6 — Security review
+## Phase 5 — Security review
 
 Security review runs **before** the full suite. If a finding requires code changes, re-running the full suite afterwards would be wasted work — so the review goes first, the fix loop has no test run inside it, and the full suite runs once at the end as the final gate.
 
@@ -215,13 +217,13 @@ Scope: only issues *introduced or worsened by this diff*. Pre-existing problems 
 If clean:
 
 ```
-Phase 6 — security: clean
+Phase 5 — security: clean
 ```
 
 If findings:
 
 ```
-Phase 6 — security: 2 findings (1 high, 1 medium), routing to implementer (cycle 1/3)
+Phase 5 — security: 2 findings (1 high, 1 medium), routing to implementer (cycle 1/3)
 ```
 
 The orchestrator then:
@@ -229,35 +231,37 @@ The orchestrator then:
 1. Hands the findings to the implementer (Opus) to fix
 2. Re-runs the security reviewer to confirm each prior finding is resolved and no new issue was introduced
 
-No test run inside this loop — the Phase 7 full suite is the gate. If a security fix breaks a test, the failure-triager in Phase 7 picks it up.
+No test run inside this loop — the Phase 6 full suite is the gate. If a security fix breaks a test, the failure-triager in Phase 6 picks it up.
+
+Security fixes touch production code only; the batch test locks stay in force through this phase.
 
 This loops until the review comes back clean or the security-cycle cap (3) trips. On trip, the orchestrator surfaces remaining findings to you with the cycles already spent and waits for direction.
 
-## Phase 7 — Full suite
+## Phase 6 — Full suite
 
-Once Phase 6 is clean:
+Once Phase 5 is clean:
 
 1. Test-runner runs full typecheck
-2. Test-runner runs full test suite
+2. Test-runner runs the full test suite and re-verifies every batch's test lock
 3. Test-runner reports coverage on touched files
 
-If all green and coverage ≥ 90% on touched files, orchestrator confirms all AC checkboxes in TASK.md are ticked, → Phase 8.
+If all green, locks verified, and coverage ≥ 90% on touched files, the orchestrator confirms all AC checkboxes in TASK.md are ticked → Phase 7.
 
-If coverage below 90% on touched files, test-author writes the missing tests, test-runner re-runs.
+If coverage is below 90% on touched files, the test-author (Sonnet) writes tests for the uncovered lines and the test-runner re-runs. It can also report a gap as `not_covered` with a reason — composition roots, thin SDK wrappers, integration-gated code — and that's accepted rather than papered over with tests that assert nothing.
 
 If failures, failure-triager (Sonnet) classifies each:
 
-- **Case 1: test was wrong** — fix automatically, log for the handoff
+- **Case 1: test was wrong** — the batch builder is re-dispatched with explicit authorization to amend that test, re-proves it red, and re-locks it. Logged for the handoff. This is the only way a locked test changes.
 - **Case 2: plan invalidation** — STOP. Surface to user. Wait.
-- **Case 3: code regression** — re-dispatch implementer
+- **Case 3: code regression** — dispatch the implementer to fix the code
 
 Cascades (3+ failures with shared root) are fixed at the root, not per-failure.
 
 ```
-Phase 7 — full suite: 47/47, coverage 94%
+Phase 6 — full suite: 47/47, coverage 94%
 ```
 
-## Phase 8 — Handoff
+## Phase 7 — Handoff
 
 The reporter (Haiku) reads the entire task dir (TASK, ARCHITECT, PLAN, SECURITY, STATE) and writes REPORT.md:
 
@@ -291,7 +295,7 @@ The reporter (Haiku) reads the entire task dir (TASK, ARCHITECT, PLAN, SECURITY,
 
 The ⚠️ on "Tests modified" is intentional — every test mutation is surfaced explicitly so you can sanity-check the rationale.
 
-The task directory persists after Phase 8. The full audit trail (TASK / ARCHITECT / PLAN / SECURITY / STATE / REPORT) is available at `~/.flow/tasks/{project}/{unix_ts}/` for as long as you want to keep it.
+The task directory persists after Phase 7. The full audit trail (TASK / MAP / ARCHITECT / PLAN / SECURITY / STATE / REPORT) is available at `~/.flow/tasks/{project}/{unix_ts}/` for as long as you want to keep it.
 
 You commit when ready. Flow never auto-commits.
 

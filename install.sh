@@ -2,8 +2,8 @@
 # /flow + /flow-lite installer — Claude Code user-level
 # Installs every skill under skills/ and all flow-* subagents into ~/.claude/
 #   skills:  flow (full orchestrated pipeline), flow-lite (clarify-then-do)
-#   agents:  pm, triager, architect, planner, test-author, implementer,
-#            test-runner, failure-triager, security-reviewer, reporter
+#   agents:  pm, triager, architect, planner, batch-builder, test-runner,
+#            failure-triager, security-reviewer, implementer, test-author, reporter
 
 set -e
 
