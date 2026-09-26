@@ -1,7 +1,7 @@
 ---
 name: flow-batch-builder
 description: Phases 4-5 of /flow pipeline, merged. For one batch: writes failing tests, proves they fail for the right reason, freezes them under a hash lock, then writes the minimum production code to make them pass. One context, one exploration pass. Called by the /flow orchestrator per batch.
-model: claude-opus-4-8
+model: inherit
 tools: Read, Write, Edit, Grep, Glob, Bash
 ---
 

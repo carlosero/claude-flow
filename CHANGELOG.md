@@ -5,6 +5,12 @@ All notable changes to Flow are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - 2026-09-10
+
+### Changed
+- **The main reasoning path now uses `model: inherit`.** `flow-architect`, `flow-planner`, and `flow-batch-builder` were each pinned to `claude-opus-4-8`; all three now run on whatever model the session is set to. These are the calls whose output survives the run — the architectural shape, the plan, and the code — so the model choice belongs at `/flow` time, not in frontmatter. The orchestrator already inherited the session model, so one selection before invoking `/flow` now governs the entire main path, and the tiers stay consistent with each other: no more paying Opus for architecture and then planning against it on a cheaper model. `flow-implementer` is the only Opus pin left, kept because it is off-path, rare, and the one call where a weaker model's mistake is not caught by tests being authored alongside it. Model tier table and phase diagrams updated in `README.md`, `docs/architecture.md`, `docs/workflow.md`, and `CLAUDE.md`.
+- **`flow-implementer` bumped to Opus 5.5.** Now targets `claude-opus-5-5` (was `claude-opus-4-8`). Model-ID example in `docs/architecture.md` updated to match.
+
 ## [0.6.0] - 2026-09-02
 
 Flow runs were taking hours on features that warranted far less. Instrumenting real runs showed the cost was not the retry loops — anti-loop guards barely fired — but **duplicated codebase exploration, paid twice per batch, across too many batches**. On a measured 10-batch run, the test-author and implementer were 82% of all subagent wall-clock; roughly 70% of a test-author dispatch and 50% of an implementer dispatch elapsed before either wrote a line, and 46% of the files the implementer read had already been read by the test-author minutes earlier in a context that was then discarded. This release attacks that directly.

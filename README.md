@@ -10,7 +10,7 @@ Two entrypoints: **`/flow`** for non-trivial features that deserve the full pipe
 
 Most AI development workflows put one big model in one big context window, asking it to plan, write tests, implement, run, debug, and report — all at the same intelligence tier. That works, but it's expensive, and bad decisions in early phases propagate through every later phase. Flow takes the opposite approach: split the work into bounded subagent calls, route each to the cheapest model that does the job well, and let an orchestrator hold the state machine and the safety rails.
 
-The result: Opus only fires when judgment matters (architecture, planning, building a batch). Sonnet handles the codebase map, security review, and failure classification. Haiku handles command execution and templating. Each subagent dies after returning, so its context never bloats the next one.
+The result: the whole main reasoning path — architecture, plan, and each batch's code — inherits your session model, so you set the quality/cost trade for a run by picking a model before you type `/flow`. Only the off-path implementer stays pinned to Opus. Sonnet handles the codebase map, security review, and failure classification. Haiku handles command execution and templating. Each subagent dies after returning, so its context never bloats the next one.
 
 Splitting has a cost, though, and Flow is explicit about it: a fresh context is only cheap when the agent doesn't have to *rebuild* it. Agents that need the same understanding of your codebase to do their jobs are merged rather than split, and the understanding they do need is written down once — in MAP.md — instead of re-derived on every dispatch.
 
@@ -38,30 +38,30 @@ Splitting has a cost, though, and Flow is explicit about it: a fresh context is 
   ↓
 [setup]   orchestrator creates ~/.flow/tasks/{project}/{unix_ts}/ and writes STATE.md
   ↓
-[Phase 0] PM (Sonnet)                writes TASK.md (feature, AC checkboxes, out-of-scope); 0–15 questions if needed
+[Phase 0] PM (Sonnet)                   writes TASK.md (feature, AC checkboxes, out-of-scope); 0–15 questions if needed
   ↓
-[Phase 1] Triager (Sonnet)           classify size, detect stack + commands, write MAP.md
+[Phase 1] Triager (Sonnet)              classify size, detect stack + commands, write MAP.md
   ↓
-[Phase 2] Architect (Opus)           writes ARCHITECT.md; 0–15 questions if needed; may raise TASK.md conflict
+[Phase 2] Architect (session)           writes ARCHITECT.md; 0–15 questions if needed; may raise TASK.md conflict
   ↓
-[Phase 3] Planner (Opus, ultrathink) writes PLAN.md (batches within budget + dependency graph + AC mapping)
+[Phase 3] Planner (session, ultrathink) writes PLAN.md (batches within budget + dependency graph + AC mapping)
   ↓
-[USER GATE]                          you review and approve the plan
+[USER GATE]                             you review and approve the plan
   ↓
-[Phase 4] Batch Builder (Opus)       per batch, in one context: failing tests → prove red → hash-lock
-                                     → minimum code → green.  Independent batches run in parallel (max 3)
-          Test Runner (Haiku)        per-batch typecheck + tests + test-lock verification
-          Orchestrator               ticks AC checkboxes in TASK.md per batch
+[Phase 4] Batch Builder (session)       per batch, in one context: failing tests → prove red → hash-lock
+                                        → minimum code → green.  Independent batches run in parallel (max 3)
+          Test Runner (Haiku)           per-batch typecheck + tests + test-lock verification
+          Orchestrator                  ticks AC checkboxes in TASK.md per batch
   ↓
-[Phase 5] Security Reviewer (Sonnet) writes SECURITY.md (diff-scoped vulnerability review)
-          Implementer (Opus)         fixes findings; reviewer re-runs (overwriting SECURITY.md) until clean
-                                     (no test run in the loop — Phase 6 is the gate)
+[Phase 5] Security Reviewer (Sonnet)    writes SECURITY.md (diff-scoped vulnerability review)
+          Implementer (Opus)            fixes findings; reviewer re-runs (overwriting SECURITY.md) until clean
+                                        (no test run in the loop — Phase 6 is the gate)
   ↓
-[Phase 6] Test Runner (Haiku)        full suite + typecheck + coverage + lock re-verification
-          Failure Triager (Sonnet)   classifies failures: test-wrong / plan-wrong / code-wrong
-          Test Author (Sonnet)       closes coverage gaps on touched files, if any
+[Phase 6] Test Runner (Haiku)           full suite + typecheck + coverage + lock re-verification
+          Failure Triager (Sonnet)      classifies failures: test-wrong / plan-wrong / code-wrong
+          Test Author (Sonnet)          closes coverage gaps on touched files, if any
   ↓
-[Phase 7] Reporter (Haiku)           reads task dir, writes REPORT.md
+[Phase 7] Reporter (Haiku)              reads task dir, writes REPORT.md
 ```
 
 For phase-by-phase detail, see [docs/workflow.md](docs/workflow.md).
@@ -211,9 +211,9 @@ Subagent model assignments are set in each agent's frontmatter. To change them, 
 
 - `agents/flow-pm.md` — Sonnet
 - `agents/flow-triager.md` — Sonnet (also writes MAP.md)
-- `agents/flow-architect.md` — Opus (every task)
-- `agents/flow-planner.md` — Opus
-- `agents/flow-batch-builder.md` — Opus (main path: tests + implementation per batch)
+- `agents/flow-architect.md` — inherits session model (every task)
+- `agents/flow-planner.md` — inherits session model
+- `agents/flow-batch-builder.md` — inherits session model (main path: tests + implementation per batch)
 - `agents/flow-test-runner.md` — Haiku
 - `agents/flow-failure-triager.md` — Sonnet
 - `agents/flow-security-reviewer.md` — Sonnet

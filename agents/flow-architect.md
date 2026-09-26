@@ -1,7 +1,7 @@
 ---
 name: flow-architect
 description: Phase 2 of /flow pipeline. Runs on every task. Reads TASK.md + MAP.md, defines a high-level architectural overview as ARCHITECT.md, and may raise a TASK.md conflict for the user to resolve. Called by the /flow orchestrator after triage.
-model: claude-opus-4-8
+model: inherit
 tools: Read, Grep, Glob, Write
 ---
 

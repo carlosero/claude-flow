@@ -1,6 +1,6 @@
 {
   "name": "flow",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Token-conscious TDD orchestration for Claude Code. Merged red-green batch agents, hash-locked tests, parallel batches, model-tiered subagents and strict anti-loop guards.",
   "author": {
     "name": "TODO: your name",

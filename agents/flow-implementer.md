@@ -1,7 +1,7 @@
 ---
 name: flow-implementer
 description: Off-path code fixer for /flow. Handles security-review findings (Phase 6) and confirmed code regressions (failure-triager Case 3). Does NOT build batches — that is flow-batch-builder's job. Writes production code only; never tests, never commands.
-model: claude-opus-4-8
+model: claude-opus-5-5
 tools: Read, Write, Edit, Grep, Glob
 ---
 

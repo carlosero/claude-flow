@@ -104,7 +104,7 @@ Phase 1 — triaged: M / Next.js + TypeScript + Vitest / MAP.md ready
 
 ## Phase 2 — Architect
 
-The architect (Opus) runs on **every task**. It reads TASK.md and MAP.md, then starts from the map's key paths and reads further only where the integration points and existing patterns aren't yet clear. Depth is calibrated to triage size — a quick sweep on S, a deeper read on L. It produces ARCHITECT.md: shape (2–4 sentences), subsystems and boundaries, data flow, integration points, key trade-offs, open assumptions. No code, no batches, no test strategy — that's the planner's job.
+The architect (session model) runs on **every task**. It reads TASK.md and MAP.md, then starts from the map's key paths and reads further only where the integration points and existing patterns aren't yet clear. Depth is calibrated to triage size — a quick sweep on S, a deeper read on L. It produces ARCHITECT.md: shape (2–4 sentences), subsystems and boundaries, data flow, integration points, key trade-offs, open assumptions. No code, no batches, no test strategy — that's the planner's job.
 
 The architect can ask up to 15 high-level questions before producing ARCHITECT.md (subsystem placement, sync vs async, transactional boundaries, etc.):
 
@@ -128,7 +128,7 @@ Phase 2 — ARCHITECT.md ready
 
 ## Phase 3 — Plan
 
-The planner (Opus, ultrathink) reads TASK.md, ARCHITECT.md, and STATE.md, then writes PLAN.md:
+The planner (session model, ultrathink) reads TASK.md, ARCHITECT.md, and STATE.md, then writes PLAN.md:
 
 ```markdown
 # PLAN
@@ -182,7 +182,7 @@ When in doubt, Flow re-presents. You can always say "proceed" on the next turn.
 
 ## Phase 4 — Build batches
 
-One agent per batch (`flow-batch-builder`, Opus) does the full red-green cycle in a single context:
+One agent per batch (`flow-batch-builder`, session model) does the full red-green cycle in a single context:
 
 1. Reads MAP.md and ARCHITECT.md, plus the batch brief the orchestrator passes inline — that batch's files, test strategy, notes, and the verbatim acceptance criteria it has to satisfy
 2. Writes the tests and runs them, confirming they fail **for the right reason** — the behavior doesn't exist yet, not a syntax error or a missing import
