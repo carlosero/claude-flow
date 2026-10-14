@@ -5,6 +5,14 @@ All notable changes to Flow are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.2] - 2026-10-14
+
+### Changed
+- **Pinned subagents bumped to the 5.5 generation.** Sonnet subagents (`flow-pm`, `flow-triager`, `flow-failure-triager`, `flow-security-reviewer`, `flow-test-author`) now target `claude-sonnet-5-5` (was `claude-sonnet-5`); Haiku subagents (`flow-test-runner`, `flow-reporter`) now target `claude-haiku-5-5` (was `claude-haiku-4-5-20251001`). `flow-implementer` stays on `claude-opus-5-5`, already the latest Opus. `flow-architect`, `flow-planner`, and `flow-batch-builder` inherit the session model and are unaffected.
+
+### Fixed
+- **`CLAUDE.md` listed `flow-triager` as a Haiku agent.** It has been on Sonnet since 0.6.0 (it writes MAP.md); the architecture summary now says so.
+
 ## [0.6.1] - 2026-09-10
 
 ### Changed

@@ -1,7 +1,7 @@
 ---
 name: flow-test-author
 description: Coverage-gap test writer for /flow Phase 7. Writes additional tests for code that already exists when the full-suite coverage check finds untested lines on touched files. Does NOT do batch TDD — that is flow-batch-builder's job.
-model: claude-sonnet-5
+model: claude-sonnet-5-5
 tools: Read, Write, Edit, Grep, Glob, Bash
 ---
 

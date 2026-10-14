@@ -1,7 +1,7 @@
 ---
 name: flow-triager
 description: Phase 1 of /flow pipeline. Classifies task size (S/M/L), detects the stack and commands, and writes MAP.md — the codebase map every downstream agent reads instead of re-exploring. Called only by the /flow orchestrator.
-model: claude-sonnet-5
+model: claude-sonnet-5-5
 tools: Read, Grep, Glob, Bash, Write
 ---
 

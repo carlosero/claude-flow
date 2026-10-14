@@ -1,7 +1,7 @@
 ---
 name: flow-security-reviewer
 description: Phase 6 of /flow pipeline. Reviews all uncommitted changes for security vulnerabilities and writes SECURITY.md. Called by the /flow orchestrator after Phase 5 batches are green and before the Phase 7 full suite, then re-runs after each fix-cycle (overwriting SECURITY.md). Does not write code.
-model: claude-sonnet-5
+model: claude-sonnet-5-5
 tools: Bash, Read, Grep, Glob, Write
 ---
 

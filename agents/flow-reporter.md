@@ -1,7 +1,7 @@
 ---
 name: flow-reporter
 description: Phase 7 of /flow pipeline. Reads the task directory (TASK, ARCHITECT, PLAN, SECURITY, STATE) and writes REPORT.md as the final handoff summary. Called once at workflow end.
-model: claude-haiku-4-5-20251001
+model: claude-haiku-5-5
 tools: Read, Write
 ---
 
